@@ -40,6 +40,20 @@ right, because Magento generates the merged config and its hash together.
 Run the refresh whenever a deployed static file changes out of band — which in developer
 mode is most of the time, because `static.php` rebuilds the merged config on request.
 
+## If the commands do not appear
+
+Magento caches the merged `di.xml`, and on a stack with Valkey or Redis behind the cache
+that lives in the cache server rather than in `var/cache`. After enabling the module,
+`bin/magento cache:flush` is sometimes not enough and the commands are simply absent from
+`bin/magento list`. Flush the cache backend itself and restart the PHP containers:
+
+```
+docker exec <valkey-cache-container> valkey-cli FLUSHALL
+```
+
+Note that the CLI usually runs in a different container from the web tier, so restarting
+one does not clear the other.
+
 ## Turning it off
 
 `bin/magento module:disable Manipulus_Bundles`. There is deliberately no admin toggle: a

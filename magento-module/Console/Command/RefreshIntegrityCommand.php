@@ -55,6 +55,7 @@ class RefreshIntegrityCommand extends Command
         $dryRun = (bool)$input->getOption(self::DRY_RUN);
         $result = $this->hashes->refresh($dryRun);
         $verb = $dryRun ? 'would refresh' : 'refreshed';
+        $summary = $dryRun ? 'would be refreshed' : 'refreshed';
 
         foreach ($result['missing'] as $key) {
             $output->writeln("<comment>hashed but not deployed: {$key}</comment>");
@@ -68,7 +69,7 @@ class RefreshIntegrityCommand extends Command
             return Command::SUCCESS;
         }
 
-        $output->writeln("<info>{$count} hash(es) {$verb}.</info>");
+        $output->writeln("<info>{$count} hash(es) {$summary}.</info>");
         return Command::SUCCESS;
     }
 }
