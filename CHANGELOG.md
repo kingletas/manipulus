@@ -4,6 +4,31 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-09-07
+
+Checkout verified with bundles: 230 JavaScript requests down to 16, the same 501 modules,
+and the page renders and functions.
+
+### Added
+
+- `manipulus sri` refreshes Magento's subresource integrity hashes. Magento applies SRI to
+  payment pages, so once the merged `requirejs-config.js` changes, its recorded hash no
+  longer matches, the browser silently refuses the script and checkout renders a spinner
+  for ever. Nothing warns. Run this after any change to a deployed file the store hashes.
+- `manipulus css` reports the stylesheets a theme deploys and, given a URL, how many of
+  each one's class names appear in the rendered markup. **It is a floor, not a verdict** —
+  a class JavaScript adds after load is invisible to it.
+- `manipulus plan --common shared` promotes a module wanted by two or more page types into
+  the common bundle instead of leaving it in each. Neither answer is free and the plan
+  records which produced it.
+
+### Fixed
+
+- A module wanted by several page types was written into every one of their bundles and
+  declared more than once in the RequireJS map, so its bytes shipped repeatedly and only
+  one claim decided where it was looked for — which is how a cart page ended up fetching
+  the product bundle. 134 of 557 modules were in that state.
+
 ## [0.2.0] - 2026-09-07
 
 Verified end to end against a running Magento 2.4.8 store with sample data. Loading a

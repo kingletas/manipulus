@@ -6,7 +6,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import __version__, bundler, entrypoints, rjsconfig
+from . import __version__, bundler, entrypoints, integrity, rjsconfig, stylesheets
 from . import graph as graph_module
 from . import plan as plan_module
 
@@ -85,11 +85,12 @@ def cmd_plan(args) -> int:
         config=config,
         per_page=per_page,
         entry_sources=sources,
+        common_strategy=args.common,
     )
     out = Path(args.out).expanduser()
     plan_module.write(plan, out)
 
-    print(f"plan written to {out}")
+    print(f"plan written to {out}   (common: {args.common})")
     for bundle in plan.bundles:
         origin = sources.get(bundle.name, "derived")
         print(f"  {bundle.name:12s} {len(bundle.modules):5d} modules   ({origin})")
@@ -123,6 +124,63 @@ def cmd_build(args) -> int:
         print(f"  {verb} {bundler.MODULE_NAME} into {module_dir}")
         print(f"         enable it with: bin/magento module:enable {bundler.MODULE_NAME}")
     print(f"  total {total / 1024:.0f} kB")
+    return 0
+
+
+def cmd_css(args) -> int:
+    """Report the CSS a theme deploys, and how much of it a page plausibly uses."""
+    theme_root = theme_root_for(Path(args.root).expanduser(), args.theme, args.locale)
+    sheets = stylesheets.read_theme(theme_root)
+    if not sheets:
+        print(f"manipulus: no stylesheets under {theme_root}", file=sys.stderr)
+        return 1
+
+    total_bytes = sum(s.bytes_on_disk for s in sheets)
+    total_rules = sum(s.rule_count for s in sheets)
+    print(f"{len(sheets)} stylesheet(s), {total_bytes / 1024:.0f} kB, {total_rules} rules")
+    for sheet in sorted(sheets, key=lambda s: -s.bytes_on_disk)[: args.top]:
+        print(f"  {sheet.kilobytes:8.0f} kB  {sheet.rule_count:6d} rules  {sheet.relative}")
+
+    for url in args.url or []:
+        html = entrypoints.fetch(url, timeout=args.timeout)
+        linked = stylesheets.linked_stylesheets(html)
+        print()
+        print(f"{url}")
+        print(f"  links {len(linked)} stylesheet(s)")
+        by_name = {s.relative.split("/")[-1]: s for s in sheets}
+        names = (href.split("/")[-1].split("?")[0] for href in linked)
+        loaded = [by_name[name] for name in names if name in by_name]
+        if loaded:
+            served = sum(s.bytes_on_disk for s in loaded)
+            print(f"  {served / 1024:.0f} kB of CSS served on this page")
+        for row in sorted(stylesheets.coverage(loaded, html), key=lambda c: c.percent):
+            print(
+                f"    {row.percent:5.1f}%  {row.classes_present:5d}/{row.classes_in_css:<5d}"
+                f" class names present   {row.stylesheet}"
+            )
+        print("  Class names only: a rule whose classes are absent may still be used by")
+        print("  JavaScript at runtime, so treat a low number as a question, not a verdict.")
+    return 0
+
+
+def cmd_sri(args) -> int:
+    """Recompute Magento's subresource integrity hashes for the deployed static files."""
+    static_root = Path(args.root).expanduser() / "pub" / "static"
+    results = integrity.refresh(static_root, dry_run=args.dry_run)
+    if not results:
+        print(f"manipulus: no {integrity.HASH_FILE} under {static_root}", file=sys.stderr)
+        return 1
+    verb = "would refresh" if args.dry_run else "refreshed"
+    total = 0
+    for result in results:
+        total += len(result.refreshed)
+        for key in result.refreshed:
+            print(f"  {verb} {key}")
+        for key in result.missing:
+            print(f"  hashed but not deployed: {key}", file=sys.stderr)
+    if total == 0:
+        return 0
+    print(f"  {total} hash(es) {verb}")
     return 0
 
 
@@ -200,6 +258,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="sharpen one page type from rendered HTML, e.g. product=https://store/p.html",
     )
     p.add_argument("--timeout", type=float, default=30.0)
+    p.add_argument(
+        "--common",
+        choices=["intersect", "shared"],
+        default="intersect",
+        help="what goes in the common bundle: only what every page loads (intersect, "
+        "the default), or anything two or more pages load (shared)",
+    )
     p.set_defaults(func=cmd_plan)
 
     p = sub.add_parser("build", parents=[common, planned], help="Write the bundles")
@@ -211,6 +276,21 @@ def build_parser() -> argparse.ArgumentParser:
         "e.g. app/code/Manipulus/Bundles",
     )
     p.set_defaults(func=cmd_build)
+
+    p = sub.add_parser("css", parents=[common], help="Report deployed CSS and its plausible use")
+    p.add_argument("--url", action="append", metavar="URL", help="also analyse a rendered page")
+    p.add_argument("--timeout", type=float, default=30.0)
+    p.add_argument("--top", type=int, default=8, help="how many stylesheets to list")
+    p.set_defaults(func=cmd_css)
+
+    p = sub.add_parser(
+        "sri",
+        parents=[],
+        help="Refresh Magento's subresource integrity hashes after a static file changes",
+    )
+    p.add_argument("--root", default=".", help="Magento installation root")
+    p.add_argument("-n", "--dry-run", action="store_true", help="report without writing")
+    p.set_defaults(func=cmd_sri)
 
     p = sub.add_parser("explain", parents=[planned], help="Say why a module is bundled")
     p.add_argument("module")
@@ -227,6 +307,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return args.func(args)
     except (
+        integrity.IntegrityError,
         graph_module.GraphError,
         bundler.BundleError,
         entrypoints.EntryPointError,

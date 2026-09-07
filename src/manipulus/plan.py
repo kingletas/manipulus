@@ -32,6 +32,7 @@ class Plan:
     entry_sources: dict[str, str] = field(default_factory=dict)
     reasons: dict[str, list[str]] = field(default_factory=dict)
     unreached: list[str] = field(default_factory=list)
+    common_strategy: str = "intersect"
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), indent=2, sort_keys=True)
@@ -75,9 +76,13 @@ def build_plan(
     per_page: dict[str, set[str]],
     entry_sources: dict[str, str] | None = None,
     common_excludes: tuple[str, ...] = ("checkout",),
+    common_strategy: str = "intersect",
 ) -> Plan:
     """Compute the common bundle and one bundle per page type."""
+    if common_strategy not in ("intersect", "shared"):
+        raise ValueError(f"unknown common strategy: {common_strategy}")
     plan = Plan(theme=theme, locale=locale, entry_sources=dict(entry_sources or {}))
+    plan.common_strategy = common_strategy
 
     always, _ = resolve_entries(set(config.deps), config, graph)
     always_closure, always_trace = graph.closure(always)
@@ -94,6 +99,25 @@ def build_plan(
     voters = [p for p in closures if p not in common_excludes] or list(closures)
     common_modules = set.intersection(*(closures[p] for p in voters)) if voters else set()
     common_modules |= always_closure
+
+    # A module wanted by several page types but not all of them has no obviously right
+    # home, and the two answers trade against each other:
+    #
+    #   "intersect"  leave it in each page bundle that wants it. Smallest download for a
+    #                visitor who sees one page, but its bytes ship more than once and the
+    #                RequireJS map records only one owner, so a page can end up fetching
+    #                an unrelated bundle to reach it.
+    #   "shared"     promote it to common. Nothing ships twice and ownership is exact,
+    #                but every page pays for it, and on this store that made checkout's
+    #                JavaScript more than twice as large.
+    #
+    # Neither is free, so the caller picks and the report says which was used.
+    if common_strategy == "shared":
+        shared: dict[str, int] = {}
+        for page_type in closures:
+            for module_id in closures[page_type] - common_modules:
+                shared[module_id] = shared.get(module_id, 0) + 1
+        common_modules |= {m for m, count in shared.items() if count > 1}
 
     plan.bundles.append(
         Bundle(name=COMMON, modules=sorted(common_modules), page_types=sorted(closures))

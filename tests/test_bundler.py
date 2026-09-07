@@ -78,3 +78,48 @@ def test_the_requirejs_config_maps_each_bundle_to_its_modules(tmp_path):
     body = target.read_text()
     assert "manipulus/bundle-common" in body
     assert '"a"' in body
+
+
+def test_no_module_is_claimed_by_two_bundles(tmp_path):
+    """Two bundles claiming one module ship its bytes twice and only one claim wins."""
+    from manipulus.plan import Bundle, Plan
+
+    plan = Plan(
+        theme="frontend/V/t",
+        locale="en_US",
+        bundles=[
+            Bundle(name="common", modules=["a", "b"]),
+            Bundle(name="cart", modules=["c"]),
+            Bundle(name="checkout", modules=["d"]),
+        ],
+    )
+    seen: dict[str, int] = {}
+    for bundle in plan.bundles:
+        for module_id in bundle.modules:
+            seen[module_id] = seen.get(module_id, 0) + 1
+    assert [m for m, n in seen.items() if n > 1] == []
+
+
+def test_the_two_common_strategies_differ(tmp_path):
+    """Neither answer is free, so the plan records which one produced it."""
+    from manipulus.graph import Graph
+    from manipulus.plan import build_plan
+    from manipulus.rjsconfig import RequireConfig
+
+    graph = Graph()
+    for name in ("shared", "only_a", "only_b", "everywhere"):
+        graph.files[name] = tmp_path / f"{name}.js"
+        graph.edges[name] = []
+    config = RequireConfig(raw={}, block_count=1)
+    pages = {
+        "product": {"shared", "only_a", "everywhere"},
+        "cart": {"shared", "only_b", "everywhere"},
+        "cms": {"everywhere"},
+    }
+    intersect = build_plan("t", "en_US", graph, config, pages, common_strategy="intersect")
+    promoted = build_plan("t", "en_US", graph, config, pages, common_strategy="shared")
+
+    common_of = lambda p: set(next(b for b in p.bundles if b.name == "common").modules)  # noqa: E731
+    assert common_of(intersect) == {"everywhere"}
+    assert common_of(promoted) == {"everywhere", "shared"}
+    assert intersect.common_strategy == "intersect"
