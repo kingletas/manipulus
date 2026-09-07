@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-09-07
+
+### Added
+
+- **A real Magento module**, `Manipulus_Bundles`, kept as source under `magento-module/`
+  rather than generated line by line. `build --module DIR` copies it and fills in the
+  bundles map. It ships a `composer.json`, a module sequence that puts it after
+  `Magento_RequireJs` and `Magento_Csp`, and two commands a deploy pipeline can run
+  without manipulus installed:
+  - `bin/magento manipulus:integrity:refresh` recomputes the subresource integrity
+    hashes. This is the one that stops checkout breaking.
+  - `bin/magento manipulus:bundles:show` lists the deployed bundles and their sizes.
+
+### Fixed
+
+- A bundle from a previous plan was left on disk when the new plan no longer had it. It
+  was still served and still listed, so it read as current while describing modules that
+  may have moved. `build` now removes them.
+
 ## [0.3.0] - 2026-09-07
 
 Checkout verified with bundles: 230 JavaScript requests down to 16, the same 501 modules,

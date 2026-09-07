@@ -30,6 +30,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project --no-editable
 
 COPY src/ ./src/
+COPY magento-module/ ./magento-module/
 # --no-editable matters: an editable install would leave the venv pointing at /src,
 # which does not exist in the runtime stage.
 RUN --mount=type=cache,target=/root/.cache/uv \

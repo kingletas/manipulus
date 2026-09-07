@@ -1,0 +1,16 @@
+{
+    "name": "kingletas/module-manipulus-bundles",
+    "description": "Loads the RequireJS bundles manipulus builds, and keeps their integrity hashes in step.",
+    "type": "magento2-module",
+    "license": "MIT",
+    "require": {
+        "php": "~8.2.0||~8.3.0||~8.4.0",
+        "magento/framework": "*"
+    },
+    "autoload": {
+        "files": ["registration.php"],
+        "psr-4": {
+            "Manipulus\\Bundles\\": ""
+        }
+    }
+}
