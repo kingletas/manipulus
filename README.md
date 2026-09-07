@@ -1,5 +1,8 @@
 # Manipulus
 
+[![CI](https://github.com/kingletas/manipulus/actions/workflows/ci.yml/badge.svg)](https://github.com/kingletas/manipulus/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 Manipulus works out which RequireJS modules each of your Magento 2 page types actually
 loads, and bundles them so the browser fetches three files instead of a hundred and fifty.
 
