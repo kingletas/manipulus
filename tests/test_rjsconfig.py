@@ -43,13 +43,14 @@ def test_a_file_with_no_config_block_is_an_error(tmp_path):
         load(tmp_path, b"var unrelated = 1;")
 
 
-def test_map_applies_before_paths(tmp_path):
+def test_map_decides_the_id_and_paths_decides_the_file(tmp_path):
     config = load(
         tmp_path,
         b"require.config({ map: { '*': { ko: 'knockoutjs/knockout' } },"
         b" paths: { knockoutjs: 'lib/knockout' } });",
     )
-    assert config.resolve("ko") == "lib/knockout/knockout"
+    assert config.resolve("ko") == "knockoutjs/knockout"
+    assert config.path_for("knockoutjs/knockout") == "lib/knockout/knockout"
 
 
 def test_longest_prefix_wins_for_paths(tmp_path):
@@ -57,8 +58,8 @@ def test_longest_prefix_wins_for_paths(tmp_path):
         tmp_path,
         b"require.config({ paths: { 'a': 'short', 'a/b': 'long' } });",
     )
-    assert config.resolve("a/b/c") == "long/c"
-    assert config.resolve("a/z") == "short/z"
+    assert config.path_for("a/b/c") == "long/c"
+    assert config.path_for("a/z") == "short/z"
 
 
 def test_scoped_map_beats_star_map(tmp_path):
@@ -84,3 +85,15 @@ def test_a_disabled_mixin_is_not_collected(tmp_path):
         b" { 'on/mixin': true, 'off/mixin': false } } } });",
     )
     assert config.mixins == {"target/mod": ["on/mixin"]}
+
+
+def test_paths_decides_the_file_not_the_id(tmp_path):
+    """RequireJS asks for `spectrum`; paths only says where its file is."""
+    config = load(tmp_path, b"require.config({ paths: { spectrum: 'jquery/spectrum/spectrum' } });")
+    assert config.resolve("spectrum") == "spectrum"
+    assert config.path_for("spectrum") == "jquery/spectrum/spectrum"
+
+
+def test_map_still_rewrites_the_id(tmp_path):
+    config = load(tmp_path, b"require.config({ map: { '*': { ko: 'knockoutjs/knockout' } } });")
+    assert config.resolve("ko") == "knockoutjs/knockout"

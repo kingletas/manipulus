@@ -148,9 +148,25 @@ def build(theme_root: Path, config: RequireConfig, workers: int | None = None) -
         more = f"\n  ... and {len(failures) - 10} more" if len(failures) > 10 else ""
         raise GraphError(f"{len(failures)} file(s) could not be read or parsed:\n  {listed}{more}")
 
+    _alias_paths(graph, config)
     _apply_mixins(graph, config)
     _partition_unbacked(graph)
     return graph
+
+
+def _alias_paths(graph: Graph, config: RequireConfig) -> None:
+    """Let a module found under its `paths` target also answer to the name it is asked by.
+
+    `paths` maps a module id to a file location, so `spectrum` is requested by that name
+    and served from jquery/spectrum/spectrum.js. Without this the file is indexed only
+    under the second name and the bundle would claim an id nobody requests.
+    """
+    for requested, target in config.paths.items():
+        if requested in graph.files:
+            continue
+        file = graph.files.get(target)
+        if file is not None:
+            graph.files[requested] = file
 
 
 def _partition_unbacked(graph: Graph) -> None:

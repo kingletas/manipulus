@@ -98,10 +98,21 @@ class RequireConfig:
         return []
 
     def resolve(self, name: str, referrer: str | None = None) -> str:
-        """Turn a written module name into the id RequireJS would load."""
+        """Turn a written module name into the id RequireJS uses for it.
+
+        `map` rewrites one module id into another, so it is applied. `paths` does not:
+        it says where a module's *file* lives, and the id keeps the name it was asked
+        for. Applying paths here would put ids in the bundles config that RequireJS
+        never requests, and every one of those modules would load on its own anyway.
+        """
         plugin, resource = split_plugin(name)
         resource = normalise(resource, referrer)
         resource = self._apply_map(resource, referrer)
+        return f"{plugin}!{resource}" if plugin else resource
+
+    def path_for(self, module_id: str) -> str:
+        """Where a module's file lives, which is what `paths` decides."""
+        plugin, resource = split_plugin(module_id)
         resource = self._apply_paths(resource)
         return f"{plugin}!{resource}" if plugin else resource
 

@@ -59,9 +59,17 @@ def dependency_names(source: bytes) -> tuple[list[str], list[str]]:
             continue
         target = positional[0]
         if target.type == "string":
-            # A named define is define('id', [deps], factory); the list is the second argument.
-            target = positional[1] if len(positional) > 1 else None
-            if target is None:
+            if callee_text in DEFINE_CALLS:
+                # A named define is define('id', [deps], factory); the list is second.
+                target = positional[1] if len(positional) > 1 else None
+                if target is None:
+                    continue
+            else:
+                # CommonJS sugar: define(function (require) { require('./dep') }). Four
+                # files in a stock Luma tree use this, and between them they pull in two
+                # dozen modules the array form never mentions.
+                raw = source[target.start_byte : target.end_byte].decode("utf8", "replace")
+                names.append(unquote(raw))
                 continue
         if target.type != "array":
             if target.type in ("identifier", "member_expression", "binary_expression"):

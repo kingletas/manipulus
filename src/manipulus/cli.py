@@ -106,6 +106,11 @@ def cmd_build(args) -> int:
 
     results = bundler.build_bundles(plan, graph, theme_root, dry_run=args.dry_run)
     config_file = bundler.write_requirejs_config(plan, theme_root, dry_run=args.dry_run)
+    module_dir = None
+    if args.module:
+        module_dir = bundler.write_magento_module(
+            plan, Path(args.module).expanduser(), dry_run=args.dry_run
+        )
 
     verb = "would write" if args.dry_run else "wrote"
     total = 0
@@ -114,6 +119,9 @@ def cmd_build(args) -> int:
         size = result.bytes_written / 1024
         print(f"  {verb} {result.path.name:28s} {result.module_count:5d} modules  {size:8.0f} kB")
     print(f"  {verb} {config_file.name}")
+    if module_dir is not None:
+        print(f"  {verb} {bundler.MODULE_NAME} into {module_dir}")
+        print(f"         enable it with: bin/magento module:enable {bundler.MODULE_NAME}")
     print(f"  total {total / 1024:.0f} kB")
     return 0
 
@@ -196,6 +204,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("build", parents=[common, planned], help="Write the bundles")
     p.add_argument("-n", "--dry-run", action="store_true", help="report without writing")
+    p.add_argument(
+        "--module",
+        metavar="DIR",
+        help="also emit a Magento module that contributes the bundles map, "
+        "e.g. app/code/Manipulus/Bundles",
+    )
     p.set_defaults(func=cmd_build)
 
     p = sub.add_parser("explain", parents=[planned], help="Say why a module is bundled")
