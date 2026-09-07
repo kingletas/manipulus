@@ -29,7 +29,11 @@ setup: ## Create the virtualenv and install every dependency
 	uv sync
 
 .PHONY: check
-check: lint test ## Everything a commit has to pass (Python only; see `magento`)
+check: lint private-info test ## Everything a commit has to pass (Python only; see `magento`)
+
+.PHONY: private-info
+private-info: ## Fail if anything tracked names the machine it was written on
+	@scripts/check-no-private-info
 
 .PHONY: check-all
 check-all: check magento ## Everything, including the Magento module's own suite
@@ -100,7 +104,7 @@ define need_root
 	if [[ -z "$(ROOT)" ]]; then \
 		echo "This target needs a Magento root."; \
 		echo; \
-		echo "  make $@ ROOT=~/Development/magento/commerce-vanilla"; \
+		echo "  make $@ ROOT=/path/to/magento"; \
 		echo "  make $@ ROOT=/path/to/magento THEME=frontend/Vendor/theme LOCALE=en_US"; \
 		echo; \
 		exit 2; \

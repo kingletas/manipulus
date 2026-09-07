@@ -3,6 +3,22 @@ __pycache__/
 .venv/
 .ruff_cache/
 .pytest_cache/
-dist/
 build/
 *.egg-info/
+
+# Python's build artefacts, named rather than the whole directory: `dist/` here
+# is what this project SHIPS, and a blanket rule on it silently dropped the
+# Magento module's entire test suite and tooling.
+/dist/*.whl
+/dist/*.tar.gz
+
+# `~/.gitignore` is core.excludesFile for every repository under $HOME and it
+# excludes *.sh, which takes packaging/release-notes.sh with it -- the script
+# the release workflow calls. Without this negation a tag fails on a missing file.
+!packaging/*.sh
+!dist/magento/**
+
+# The module's own dependencies are a whole Magento framework.
+/dist/magento/vendor/
+/dist/magento/.phpunit.cache/
+/dist/magento/composer.lock

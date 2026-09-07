@@ -1,0 +1,60 @@
+<?xml version="1.0"?>
+<ruleset name="Manipulus_Bundles">
+    <description>
+        Magento's own coding standard, with a floor on the PHP version the
+        manifest claims to support. The floor is 8.2, which is what this code
+        actually needs: promoted readonly properties. Declaring lower would be
+        a promise the code cannot keep.
+    </description>
+
+    <file>Console</file>
+    <file>Model</file>
+    <file>Test</file>
+    <file>registration.php</file>
+
+    <!-- Composer writes one, PHPUnit the other. Neither is ours to lint. -->
+    <exclude-pattern>vendor/*</exclude-pattern>
+    <exclude-pattern>.phpunit.cache/*</exclude-pattern>
+
+    <arg name="extensions" value="php"/>
+    <arg name="colors"/>
+    <arg value="sp"/>
+
+    <rule ref="Magento2"/>
+
+    <!-- Every file declares strict types; the Magento CI enforces the same rule. -->
+    <rule ref="Generic.PHP.RequireStrictTypes"/>
+
+    <rule ref="PHPCompatibility">
+        <include-pattern>*\.php$</include-pattern>
+    </rule>
+    <config name="testVersion" value="8.2-"/>
+
+    <!-- Exclusions, each with its reason. -->
+
+    <!-- PHPUnit instantiates a test class directly and nothing subclasses it. -->
+    <rule ref="Magento2.PHP.FinalImplementation">
+        <exclude-pattern>Test/*</exclude-pattern>
+    </rule>
+
+    <!-- PHPUnit requires data providers to be static. -->
+    <rule ref="Magento2.Functions.StaticFunction">
+        <exclude-pattern>Test/*</exclude-pattern>
+    </rule>
+
+    <!-- The bootstrap runs before any framework exists and can only return a code. -->
+    <rule ref="Magento2.Security.LanguageConstruct">
+        <exclude-pattern>Test/bootstrap.php</exclude-pattern>
+    </rule>
+
+    <!-- A docblock that only restates a native signature carries no information. -->
+    <rule ref="Magento2.Annotation.MethodAnnotationStructure">
+        <severity>0</severity>
+    </rule>
+    <rule ref="Magento2.Annotation.MethodArguments">
+        <severity>0</severity>
+    </rule>
+    <rule ref="Magento2.Commenting.ClassPropertyPHPDocFormatting">
+        <severity>0</severity>
+    </rule>
+</ruleset>

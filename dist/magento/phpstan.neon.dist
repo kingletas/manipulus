@@ -1,0 +1,11 @@
+# Static analysis needs the Magento classes on the autoloader, so this only runs
+# where composer has resolved magento/framework. A job that cannot resolve it
+# should be skipped rather than allowed to pass on an empty class map.
+parameters:
+    level: 6
+    paths:
+        - Console
+        - Model
+    excludePaths:
+        - Test/*
+    treatPhpDocTypesAsCertain: false

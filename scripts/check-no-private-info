@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+#
+# check-no-private-info -- fail if anything committable names the machine it was
+# written on.
+#
+# Usage:  scripts/check-no-private-info [-h]
+#
+# A sweep is necessary and not sufficient, but it is the half that can be
+# automated. What it looks for, in tracked files only:
+#
+#   1. an absolute home path -- /home/<anyone> or /Users/<anyone>
+#   2. the login and hostname of whoever is running it
+#   3. a path into a personal source tree
+#
+# THE LOGIN AND HOSTNAME ARE READ AT RUN TIME, NEVER WRITTEN DOWN. A check that
+# hardcoded them would publish the two strings it exists to keep out.
+
+set -euo pipefail
+
+usage() { sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+[[ "${1:-}" =~ ^(-h|--help)$ ]] && { usage; exit 0; }
+
+cd "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+
+fail=0
+
+report() {
+    local label="$1" pattern="$2"
+    local hits
+    # -I skips binary files; the null-delimited list survives odd filenames.
+    hits="$(git ls-files -z | xargs -0 grep -nIE "$pattern" 2>/dev/null || true)"
+    if [[ -n "$hits" ]]; then
+        echo "  ${label}:"
+        printf '%s\n' "$hits" | sed 's/^/    /'
+        fail=1
+    fi
+}
+
+report "absolute home path" '(/home/|/Users/)[a-z0-9_-]+'
+report "this account's login" "(^|[^a-zA-Z0-9])$(id -un)([^a-zA-Z0-9]|$)"
+report "this machine's hostname" "(^|[^a-zA-Z0-9.])$(hostname -s)([^a-zA-Z0-9.]|$)"
+report "a personal source tree" '~/(Development|Projects|src|code)/'
+
+if [[ $fail -ne 0 ]]; then
+    echo
+    echo "check-no-private-info: the tree names the machine it was written on."
+    exit 1
+fi
+
+echo "check-no-private-info: nothing here names the machine it was written on."
