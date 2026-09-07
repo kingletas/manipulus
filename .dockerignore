@@ -1,0 +1,14 @@
+.git/
+.venv/
+.ruff_cache/
+.pytest_cache/
+__pycache__/
+build/
+*.egg-info/
+docs/
+tests/
+packaging/
+# The module's dev dependencies are a full Magento framework. The image ships
+# the module's source so manipulus can emit it, never anything it tests with.
+dist/magento/vendor/
+dist/magento/.phpunit.cache/

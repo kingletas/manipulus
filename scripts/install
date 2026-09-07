@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+#
+# install -- put manipulus on your PATH.
+#
+# Usage:
+#   scripts/install [PREFIX]     default: ~/.local/bin
+#
+# Installs through `uv tool install`, which gives the tool its own interpreter. A
+# plain copy would not work: manipulus is a Python package with compiled tree-sitter
+# dependencies, and a virtualenv's console script hardcodes the venv path in its
+# shebang, so a moved venv stops working with a bare "no such file or directory".
+
+set -euo pipefail
+
+usage() { sed -n '2,/^$/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; }
+[[ "${1:-}" =~ ^(-h|--help)$ ]] && { usage; exit 0; }
+
+here="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+prefix="${1:-$HOME/.local/bin}"
+
+if ! command -v uv >/dev/null 2>&1; then
+    echo "install: uv is not on PATH. See https://docs.astral.sh/uv/" >&2
+    exit 1
+fi
+
+UV_TOOL_BIN_DIR="$prefix" uv tool install --force --from "$here" manipulus
+
+if ! command -v manipulus >/dev/null 2>&1; then
+    echo
+    echo "install: manipulus is installed in $prefix, which is not on your PATH."
+    echo "Add it:  export PATH=\"$prefix:\$PATH\""
+fi

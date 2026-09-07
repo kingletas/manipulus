@@ -1,0 +1,225 @@
+"""Writes the bundle files and the RequireJS configuration that points at them."""
+
+from __future__ import annotations
+
+import json
+import re
+import shutil
+from dataclasses import dataclass
+from pathlib import Path
+
+from ..analysis.graph import Graph
+from ..analysis.rjsconfig import RequireConfig
+from .plan import Plan
+
+BUNDLE_DIR = "manipulus"
+
+NAMED_DEFINE = re.compile(r"(^|[?;\s{}()])define\s*\(\s*['\"]")
+ANY_DEFINE = re.compile(r"(^|[?;\s{}()])define\s*\(")
+
+
+class BundleError(RuntimeError):
+    """A bundle could not be written completely."""
+
+
+@dataclass
+class BundleResult:
+    name: str
+    path: Path
+    module_count: int
+    bytes_written: int
+
+
+def _wrap_text_resource(module_id: str, content: str) -> str:
+    """A non-JavaScript resource becomes a module returning its own text."""
+    return f"define({json.dumps(module_id)}, function () {{ return {json.dumps(content)}; }});\n"
+
+
+def _wrap_non_amd(module_id: str, content: str) -> str:
+    """A plain script becomes a module, taking its dependencies and export from the shim config."""
+    name = json.dumps(module_id)
+    return (
+        f"define({name}, "
+        f"(require.s.contexts._.config.shim[{name}] "
+        f"&& require.s.contexts._.config.shim[{name}].deps) || [], function () {{\n"
+        f"{content}\n"
+        f"return (require.s.contexts._.config.shim[{name}] "
+        f"&& require.s.contexts._.config.shim[{name}].exportsFn "
+        f"&& require.s.contexts._.config.shim[{name}].exportsFn());\n"
+        f"}}.bind(window));\n"
+    )
+
+
+def _name_anonymous(module_id: str, content: str) -> str:
+    """An anonymous define() has to be given its name before it can share a file."""
+    name = json.dumps(module_id)
+    return ANY_DEFINE.sub(lambda m: f"{m.group(1)}define({name}, ", content, count=1)
+
+
+def wrap(module_id: str, path: Path, content: str) -> str:
+    if path.suffix != ".js":
+        return _wrap_text_resource(module_id, content)
+    if not ANY_DEFINE.search(content):
+        return _wrap_non_amd(module_id, content)
+    if not NAMED_DEFINE.search(content):
+        return _name_anonymous(module_id, content)
+    return content
+
+
+def build_bundles(
+    plan: Plan,
+    graph: Graph,
+    theme_root: Path,
+    dry_run: bool = False,
+) -> list[BundleResult]:
+    """Write every bundle in the plan.
+
+    Everything is assembled in memory before anything is written, so a run that cannot
+    complete leaves no half-built bundle on disk for RequireJS to find.
+    """
+    output_dir = theme_root / BUNDLE_DIR
+    missing: list[str] = []
+    assembled: list[tuple[str, Path, int, str]] = []
+
+    for bundle in plan.bundles:
+        pieces: list[str] = []
+        for module_id in bundle.modules:
+            file = graph.files.get(module_id)
+            if file is None or not file.is_file():
+                missing.append(f"{bundle.name}: {module_id}")
+                continue
+            try:
+                content = file.read_text("utf-8", errors="replace")
+            except OSError as error:
+                missing.append(f"{bundle.name}: {module_id} ({error})")
+                continue
+            pieces.append(wrap(module_id, file, content))
+        target = output_dir / f"bundle-{bundle.name}.js"
+        assembled.append((bundle.name, target, len(pieces), "\n".join(pieces)))
+
+    if missing:
+        listed = "\n  ".join(missing[:10])
+        more = f"\n  ... and {len(missing) - 10} more" if len(missing) > 10 else ""
+        raise BundleError(
+            "refusing to write an incomplete bundle; "
+            f"{len(missing)} module(s) could not be read:\n  {listed}{more}"
+        )
+
+    results = []
+    if not dry_run:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        _remove_stale(output_dir, {name for name, _, _, _ in assembled})
+    for name, target, count, body in assembled:
+        if not dry_run:
+            target.write_text(body, encoding="utf-8")
+        results.append(
+            BundleResult(
+                name=name,
+                path=target,
+                module_count=count,
+                bytes_written=len(body.encode("utf-8")),
+            )
+        )
+    return results
+
+
+def _remove_stale(output_dir: Path, keep: set[str]) -> list[Path]:
+    """Delete bundles a previous plan wrote that this one no longer has.
+
+    A left-behind bundle is still served and still listed, so it reads as current while
+    describing modules that may have moved.
+    """
+    removed = []
+    for existing in sorted(output_dir.glob("bundle-*.js")):
+        if existing.stem[len("bundle-") :] not in keep:
+            existing.unlink()
+            removed.append(existing)
+    return removed
+
+
+def write_requirejs_config(plan: Plan, theme_root: Path, dry_run: bool = False) -> Path:
+    """Emit the bundles map so RequireJS fetches a bundle instead of each module."""
+    mapping = {
+        f"{BUNDLE_DIR}/bundle-{bundle.name}": bundle.modules
+        for bundle in plan.bundles
+        if bundle.modules
+    }
+    body = f"require.config({json.dumps({'bundles': mapping}, indent=4, sort_keys=True)});\n"
+    target = theme_root / BUNDLE_DIR / "requirejs-bundles-config.js"
+    if not dry_run:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(body, encoding="utf-8")
+    return target
+
+
+MODULE_NAME = "Manipulus_Bundles"
+MODULE_CONFIG = "view/frontend/requirejs-config.js"
+
+# What the module needs to run in a store, and nothing a checkout leaves beside
+# it. A developer's `composer install` puts a whole Magento framework under
+# vendor/, and copying that into app/code would be 180 MB of someone else's code.
+MODULE_EXCLUDED = ("vendor", ".phpunit.cache", "composer.lock", "var")
+
+
+def module_source() -> Path:
+    """Where the Magento module's source lives, whether installed or in a checkout."""
+    here = Path(__file__).resolve()
+    candidates = [
+        # Installed: the wheel carries the module inside the package.
+        here.parents[1] / "magento_module",
+        # A checkout: it sits under dist/, alongside anything else we ship.
+        here.parents[3] / "dist" / "magento",
+    ]
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+    listed = " or ".join(str(c) for c in candidates)
+    raise BundleError(f"the Magento module source is missing; looked in {listed}")
+
+
+def write_magento_module(plan: Plan, module_dir: Path, dry_run: bool = False) -> Path:
+    """Copy the Magento module into place and fill in the bundles map.
+
+    The deployed requirejs-config.js cannot be edited: every versioned static request in
+    developer mode goes through static.php, which re-merges that file from source and
+    discards anything appended to it. A module is the only place the map survives.
+    """
+    source = module_source()
+    mapping = {
+        f"{BUNDLE_DIR}/bundle-{bundle.name}": bundle.modules
+        for bundle in plan.bundles
+        if bundle.modules
+    }
+    generated = (
+        "// Generated by manipulus. Every module listed here is inside its bundle, so\n"
+        "// RequireJS fetches the bundle once instead of each module on its own.\n"
+        f"var config = {json.dumps({'bundles': mapping}, indent=4, sort_keys=True)};\n"
+    )
+
+    if dry_run:
+        return module_dir
+
+    for item in sorted(source.rglob("*")):
+        if not item.is_file():
+            continue
+        relative = item.relative_to(source)
+        if relative.parts[0] in MODULE_EXCLUDED:
+            continue
+        target = module_dir / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        if relative.as_posix() == MODULE_CONFIG:
+            target.write_text(generated, encoding="utf-8")
+        else:
+            shutil.copyfile(item, target)
+    return module_dir
+
+
+def unused_config(config: RequireConfig) -> dict[str, int]:
+    """A quick shape summary, useful when reporting what was read."""
+    return {
+        "map": len(config.star_map),
+        "paths": len(config.paths),
+        "shim": len(config.shim),
+        "deps": len(config.deps),
+        "mixins": len(config.mixins),
+    }

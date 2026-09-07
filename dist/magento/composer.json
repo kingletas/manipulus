@@ -1,0 +1,56 @@
+{
+    "name": "kingletas/module-manipulus-bundles",
+    "description": "Loads the RequireJS bundles manipulus builds, and keeps their subresource integrity hashes in step with the files they describe.",
+    "type": "magento2-module",
+    "repositories": [
+        {
+            "type": "composer",
+            "url": "https://repo.magento.com/"
+        }
+    ],
+    "license": "MIT",
+    "require": {
+        "php": ">=8.2",
+        "magento/framework": ">=103.0"
+    },
+    "require-dev": {
+        "magento/magento-coding-standard": ">=38 <42",
+        "phpcompatibility/php-compatibility": "^9.3",
+        "phpstan/phpstan": "^2.0",
+        "phpunit/phpunit": "^10.5 || ^11.0"
+    },
+    "autoload": {
+        "files": [
+            "registration.php"
+        ],
+        "psr-4": {
+            "Manipulus\\Bundles\\": ""
+        },
+        "exclude-from-classmap": [
+            "/Test/"
+        ]
+    },
+    "config": {
+        "allow-plugins": {
+            "dealerdirect/phpcodesniffer-composer-installer": true,
+            "magento/*": true
+        },
+        "sort-packages": true
+    },
+    "scripts": {
+        "lint": "find . -path ./vendor -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l > /dev/null",
+        "cs": "phpcs --standard=phpcs.xml.dist",
+        "cs-fix": "phpcbf --standard=phpcs.xml.dist",
+        "stan": "phpstan analyse --configuration phpstan.neon.dist --no-progress",
+        "test": "phpunit --configuration phpunit.xml.dist",
+        "check": [
+            "@lint",
+            "@cs",
+            "@test"
+        ]
+    },
+    "scripts-descriptions": {
+        "check": "Everything a commit has to pass.",
+        "test": "The unit suite. Needs M2_VENDOR pointing at a Magento installation's vendor directory."
+    }
+}

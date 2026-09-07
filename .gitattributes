@@ -1,0 +1,8 @@
+# Check every text file out with LF on every platform. A CRLF clone makes the
+# whole tree look misformatted at once, which reads as a formatting fault rather
+# than as a line ending.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
