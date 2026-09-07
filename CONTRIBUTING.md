@@ -13,11 +13,27 @@ make check
 
 `make check` runs the linter and the test suite, and it's what a commit has to pass.
 
+## Where things live
+
+```
+src/manipulus/analysis/    reading a deployed theme: config, modules, CSS
+src/manipulus/bundling/    deciding what goes in each bundle, and writing them
+src/manipulus/magento/     things true of the installation, not of the theme
+dist/magento/              the Magento module, with its own suite
+```
+
+`tests/` mirrors `src/manipulus/`. A new module goes in the package that matches what it
+reads or writes, and its test goes in the same place under `tests/`.
+
 ## Working on it
 
 - `make test` runs the suite. `make lint` runs ruff. `make format` rewrites files in house
   style and fixes what it can.
 - `make image` builds the container.
+- `make magento` runs the Magento module's own suite — 16 unit tests, a wiring test, the
+  Magento coding standard and static analysis. It needs `make magento-install` first, which
+  resolves `magento/framework` and so needs repo.magento.com credentials. `make check-all`
+  runs both projects.
 - Point the tool at a real store to try a change: `make plan ROOT=/path/to/magento`.
 
 ## Things worth knowing before you change the parser
@@ -39,7 +55,8 @@ and a test that makes it stay quiet.
 
 ## Writing tests
 
-Tests live in `tests/` and use pytest. Build fixtures out of invented data shaped like the
+Tests live in `tests/` and use pytest; the Magento module's live in `dist/magento/Test/Unit`
+and use PHPUnit. Build fixtures out of invented data shaped like the
 real thing rather than copying a real store's files.
 
 Name a test after the behaviour it pins down, not the function it calls.
