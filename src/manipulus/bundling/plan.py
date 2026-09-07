@@ -6,9 +6,9 @@ import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from .graph import Graph
-from .resolve import bundle_id
-from .rjsconfig import RequireConfig
+from ..analysis.graph import Graph
+from ..analysis.resolve import bundle_id
+from ..analysis.rjsconfig import RequireConfig
 
 COMMON = "common"
 

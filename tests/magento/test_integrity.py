@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from manipulus import integrity
+from manipulus.magento import integrity
 
 
 def make_store(tmp_path, recorded_hash: str | None = None):

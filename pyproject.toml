@@ -1,6 +1,6 @@
 [project]
 name = "manipulus"
-version = "0.4.0"
+version = "0.5.0"
 description = "Static RequireJS bundle planner for Magento 2, with no browser and no Node."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -28,7 +28,7 @@ build-backend = "hatchling.build"
 packages = ["src/manipulus"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"magento-module" = "manipulus/magento_module"
+"dist/magento" = "manipulus/magento_module"
 
 [tool.ruff]
 line-length = 100

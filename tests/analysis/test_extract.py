@@ -1,6 +1,6 @@
 """Pulling dependency names out of the four shapes an AMD module comes in."""
 
-from manipulus.extract import dependency_names
+from manipulus.analysis.extract import dependency_names
 
 
 def names(source: str) -> list[str]:

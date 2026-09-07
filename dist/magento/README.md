@@ -48,11 +48,15 @@ that lives in the cache server rather than in `var/cache`. After enabling the mo
 `bin/magento list`. Flush the cache backend itself and restart the PHP containers:
 
 ```
-docker exec <valkey-cache-container> valkey-cli FLUSHALL
+docker restart <php containers> && sleep 15 && docker exec <valkey> valkey-cli FLUSHALL
 ```
 
-Note that the CLI usually runs in a different container from the web tier, so restarting
-one does not clear the other.
+**Order matters, and getting it backwards is what makes this look intermittent.** A
+container that is starting repopulates the DI cache from the state it had, so a flush
+issued before the restart is undone by the restart. Flush *after* everything is up.
+
+Note also that the CLI usually runs in a different container from the web tier, so
+restarting one does not clear the other.
 
 ## Turning it off
 

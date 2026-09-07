@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from manipulus import rjsconfig
+from manipulus.analysis import rjsconfig
 
 TWO_BLOCKS = b"""
 (function () {

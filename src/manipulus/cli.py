@@ -6,9 +6,12 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import __version__, bundler, entrypoints, integrity, rjsconfig, stylesheets
-from . import graph as graph_module
-from . import plan as plan_module
+from . import __version__
+from .analysis import entrypoints, rjsconfig, stylesheets
+from .analysis import graph as graph_module
+from .bundling import bundler
+from .bundling import plan as plan_module
+from .magento import integrity
 
 DEFAULT_PLAN = "manipulus.plan.json"
 

@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from manipulus import graph as graph_module
-from manipulus import rjsconfig
+from manipulus.analysis import graph as graph_module
+from manipulus.analysis import rjsconfig
 
 
 def theme(tmp_path: Path) -> Path:

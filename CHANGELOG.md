@@ -4,6 +4,33 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-09-07
+
+### Changed
+
+- **The codebase is no longer flat.** `src/manipulus/` is three packages now — `analysis`
+  for reading a deployed theme, `bundling` for deciding and writing, `magento` for things
+  true of the installation rather than of the theme. The test tree mirrors it.
+- **The Magento module moved to `dist/magento`**, which is where this project puts what it
+  ships besides the command itself.
+
+### Added
+
+- **The Magento module has its own suite**: 16 unit tests over its two commands and its
+  hash model, a wiring test that reads `etc/di.xml` against the code it names, Magento's
+  coding standard, static analysis at level 6, and a Makefile. `make magento` runs them.
+- A release workflow, a Dependabot configuration and a changelog extractor, so a tag
+  publishes a release whose body is that version's changelog section.
+
+### Fixed
+
+- `build --module` copied everything beside the module source, so running it from a
+  checkout where `composer install` had been run would have written **180 MB of Magento
+  framework** into the store's `app/code`.
+- The module set an area code it did not need, and caught the "already set" exception with
+  an empty body — which is a coding-standard warning and, more to the point, was doing
+  nothing.
+
 ## [0.4.0] - 2026-09-07
 
 ### Added

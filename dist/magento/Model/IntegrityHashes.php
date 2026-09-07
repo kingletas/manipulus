@@ -43,7 +43,10 @@ class IntegrityHashes
         $missing = [];
 
         foreach ($this->hashFiles($static) as $hashFile) {
-            $area = dirname($hashFile);
+            // The area is the directory the hash file sits in, and the path is
+            // always relative to the static root, so this is string work rather
+            // than a filesystem question.
+            $area = (string) strstr($hashFile, '/', true);
             $recorded = $this->json->unserialize($static->readFile($hashFile));
             if (!is_array($recorded)) {
                 continue;

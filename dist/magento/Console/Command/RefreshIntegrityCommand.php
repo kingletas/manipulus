@@ -8,7 +8,6 @@ declare(strict_types=1);
 
 namespace Manipulus\Bundles\Console\Command;
 
-use Magento\Framework\App\State;
 use Manipulus\Bundles\Model\IntegrityHashes;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -29,7 +28,6 @@ class RefreshIntegrityCommand extends Command
 
     public function __construct(
         private readonly IntegrityHashes $hashes,
-        private readonly State $state,
         ?string $name = null
     ) {
         parent::__construct($name);
@@ -46,12 +44,6 @@ class RefreshIntegrityCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        try {
-            $this->state->setAreaCode('adminhtml');
-        } catch (\Magento\Framework\Exception\LocalizedException) {
-            // Already set by the CLI bootstrap, which is fine.
-        }
-
         $dryRun = (bool)$input->getOption(self::DRY_RUN);
         $result = $this->hashes->refresh($dryRun);
         $verb = $dryRun ? 'would refresh' : 'refreshed';

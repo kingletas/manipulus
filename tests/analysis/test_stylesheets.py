@@ -1,6 +1,6 @@
 """Reading deployed CSS, and the limits of judging it by class name."""
 
-from manipulus import stylesheets
+from manipulus.analysis import stylesheets
 
 SHEET = """
 /* a comment { not a rule } */

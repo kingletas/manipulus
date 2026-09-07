@@ -14,6 +14,7 @@ ROOT    ?=
 THEME   ?= frontend/Magento/luma
 LOCALE  ?= en_US
 PLAN    ?= manipulus.plan.json
+MODULE  := dist/magento
 
 .PHONY: help
 help: ## Show this help
@@ -28,7 +29,10 @@ setup: ## Create the virtualenv and install every dependency
 	uv sync
 
 .PHONY: check
-check: lint test ## Everything a commit has to pass
+check: lint test ## Everything a commit has to pass (Python only; see `magento`)
+
+.PHONY: check-all
+check-all: check magento ## Everything, including the Magento module's own suite
 
 .PHONY: lint
 lint: ## Lint every source file
@@ -42,6 +46,23 @@ format: ## Rewrite every file in house style
 .PHONY: test
 test: ## Run the test suite
 	uv run pytest
+
+# --- the Magento module ---
+
+.PHONY: magento
+magento: ## Run the Magento module's own checks. Needs its dev dependencies
+	@if [[ ! -d $(MODULE)/vendor ]]; then \
+		echo "  $(MODULE) has no dependencies installed."; \
+		echo; \
+		echo "      make magento-install     (needs repo.magento.com credentials)"; \
+		echo; \
+		exit 2; \
+	fi
+	@$(MAKE) --no-print-directory -C $(MODULE) check
+
+.PHONY: magento-install
+magento-install: ## Install the Magento module's dev dependencies
+	@$(MAKE) --no-print-directory -C $(MODULE) install
 
 # --- distribution ---
 

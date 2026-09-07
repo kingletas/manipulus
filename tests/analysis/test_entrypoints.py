@@ -1,6 +1,6 @@
 """Harvesting entry points from rendered HTML and from layout XML."""
 
-from manipulus import entrypoints
+from manipulus.analysis import entrypoints
 
 # The shape Magento renders: a selector, a component, and a jsLayout tree beneath it.
 PAGE = """

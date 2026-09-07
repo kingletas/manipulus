@@ -8,9 +8,9 @@ import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
-from .graph import Graph
+from ..analysis.graph import Graph
+from ..analysis.rjsconfig import RequireConfig
 from .plan import Plan
-from .rjsconfig import RequireConfig
 
 BUNDLE_DIR = "manipulus"
 
@@ -155,19 +155,26 @@ def write_requirejs_config(plan: Plan, theme_root: Path, dry_run: bool = False) 
 MODULE_NAME = "Manipulus_Bundles"
 MODULE_CONFIG = "view/frontend/requirejs-config.js"
 
+# What the module needs to run in a store, and nothing a checkout leaves beside
+# it. A developer's `composer install` puts a whole Magento framework under
+# vendor/, and copying that into app/code would be 180 MB of someone else's code.
+MODULE_EXCLUDED = ("vendor", ".phpunit.cache", "composer.lock", "var")
+
 
 def module_source() -> Path:
-    """Where the Magento module's source lives, installed or in a checkout."""
-    packaged = Path(__file__).parent / "magento_module"
-    if packaged.is_dir():
-        return packaged
-    checkout = Path(__file__).resolve().parents[2] / "magento-module"
-    if checkout.is_dir():
-        return checkout
-    raise BundleError(
-        "the Magento module source is missing; expected it beside the package "
-        f"at {packaged} or in a checkout at {checkout}"
-    )
+    """Where the Magento module's source lives, whether installed or in a checkout."""
+    here = Path(__file__).resolve()
+    candidates = [
+        # Installed: the wheel carries the module inside the package.
+        here.parents[1] / "magento_module",
+        # A checkout: it sits under dist/, alongside anything else we ship.
+        here.parents[3] / "dist" / "magento",
+    ]
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+    listed = " or ".join(str(c) for c in candidates)
+    raise BundleError(f"the Magento module source is missing; looked in {listed}")
 
 
 def write_magento_module(plan: Plan, module_dir: Path, dry_run: bool = False) -> Path:
@@ -196,6 +203,8 @@ def write_magento_module(plan: Plan, module_dir: Path, dry_run: bool = False) ->
         if not item.is_file():
             continue
         relative = item.relative_to(source)
+        if relative.parts[0] in MODULE_EXCLUDED:
+            continue
         target = module_dir / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         if relative.as_posix() == MODULE_CONFIG:

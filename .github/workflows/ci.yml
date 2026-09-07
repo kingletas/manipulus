@@ -9,10 +9,10 @@ permissions:
   contents: read
 
 jobs:
-  check:
+  python:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Install uv
         uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb # v6.1.0
@@ -28,13 +28,36 @@ jobs:
       - name: Test
         run: uv run pytest
 
+  magento-module:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      - uses: shivammathur/setup-php@9e72090525849c5e82e596468b86eb55e9cc5401 # v2.32.0
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      # The unit suite needs magento/framework, which resolves only from
+      # repo.magento.com and only with credentials. A public runner has none,
+      # so what CI proves here is that every file parses on the floor the
+      # manifest claims — and the suite runs locally through `make magento`.
+      - name: Every PHP file parses on the declared floor
+        working-directory: dist/magento
+        run: find . -path ./vendor -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
+
   image:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
       - name: Build the container image
         run: docker build -t manipulus:ci .
 
       - name: The image runs
         run: docker run --rm manipulus:ci --version
+
+      - name: The image carries the Magento module it emits
+        run: |
+          docker run --rm --entrypoint /bin/sh manipulus:ci -c \
+            'test -f /opt/manipulus/lib/python3.12/site-packages/manipulus/magento_module/registration.php'

@@ -101,10 +101,50 @@ mistaken for an exact answer.
 
 ### Wiring the bundles into Magento
 
-`build` writes the bundles and a `requirejs-bundles-config.js` beside them, under
-`pub/static/<area>/<Vendor>/<theme>/<locale>/manipulus/`. Load that config file after
-Magento's own `requirejs-config.js` and RequireJS will fetch a bundle instead of each
-module in it.
+`build --module app/code/Manipulus/Bundles` writes the bundles and installs a small Magento
+module that tells RequireJS about them:
+
+```
+manipulus build --root /path/to/magento --module app/code/Manipulus/Bundles
+bin/magento module:enable Manipulus_Bundles
+bin/magento setup:upgrade
+bin/magento setup:static-content:deploy -f
+```
+
+**The deployed `requirejs-config.js` cannot simply be edited.** Every versioned static
+request in developer mode goes through `static.php`, which re-merges that file from source
+and discards anything appended to it. A module is the only place the map survives.
+
+The module also carries `bin/magento manipulus:integrity:refresh`. Magento applies
+subresource integrity to payment pages, so once the merged config changes its recorded hash
+no longer matches, the browser refuses the script, and **checkout renders a spinner for ever
+with nothing in the console**. Deploying static content after enabling the module keeps them
+in step; run the command after any out-of-band change.
+
+## What is in here
+
+```
+src/manipulus/
+  analysis/     reading a deployed theme: its config, its modules, its CSS
+  bundling/     deciding what goes in each bundle, and writing them out
+  magento/      things true of the installation rather than of the theme
+  cli.py
+dist/magento/   the Magento module, with its own suite and its own Makefile
+docs/           how it works
+packaging/      release plumbing
+```
+
+`dist/` is what this project ships besides the command itself. The Magento module there is
+real source with its own tests, not something generated a line at a time — `build --module`
+copies it and fills in the bundles map.
+
+Its checks need `magento/framework`, which resolves only from repo.magento.com:
+
+```
+make magento-install    # needs credentials
+make magento            # the module's lint, coding standard and unit suite
+make check-all          # both projects at once
+```
 
 ## Checking a plan is still good
 

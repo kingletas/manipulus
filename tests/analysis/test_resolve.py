@@ -2,7 +2,7 @@
 
 import pytest
 
-from manipulus.resolve import bundle_id, is_remote, split_plugin
+from manipulus.analysis.resolve import bundle_id, is_remote, split_plugin
 
 
 @pytest.mark.parametrize(
