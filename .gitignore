@@ -22,3 +22,10 @@ build/
 /dist/magento/vendor/
 /dist/magento/.phpunit.cache/
 /dist/magento/composer.lock
+
+# Disposable output: build products, screenshots, working images, scratch
+# notes. Nothing here is reviewed and nothing here is committed.
+#
+# It carries its own line because the machine this was written on hides it
+# through a user-level excludes file, and a clone has none of that.
+local.d/
