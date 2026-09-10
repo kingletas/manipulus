@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -22,11 +27,8 @@ jobs:
       - name: Install dependencies
         run: uv sync --frozen
 
-      - name: Lint
-        run: uv run ruff check src tests
-
-      - name: Test
-        run: uv run pytest
+      - name: Lint, private-info sweep and tests
+        run: make check
 
   magento-module:
     runs-on: ubuntu-latest
