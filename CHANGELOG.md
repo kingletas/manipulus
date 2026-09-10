@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **`make check` passes on a CI runner.** The private-info sweep flagged the runner's own login, `runner`, wherever the word appeared in prose. On CI it now skips the login and hostname checks, which only mean something on the author's machine, and still checks for home paths and personal source trees.
+
+### Changed
+
+- CI runs `make check`, so the private-info sweep runs on every push, and a newer push cancels the run it replaces.
+- Dependabot groups its updates into one pull request per ecosystem.
+
 ## [0.5.0] - 2026-09-07
 
 ### Changed

@@ -9,7 +9,7 @@
 # automated. What it looks for, in tracked files only:
 #
 #   1. an absolute home path -- /home/<anyone> or /Users/<anyone>
-#   2. the login and hostname of whoever is running it
+#   2. the login and hostname of whoever is running it, except on CI
 #   3. a path into a personal source tree
 #
 # THE LOGIN AND HOSTNAME ARE READ AT RUN TIME, NEVER WRITTEN DOWN. A check that
@@ -37,9 +37,16 @@ report() {
 }
 
 report "absolute home path" '(/home/|/Users/)[a-z0-9_-]+'
-report "this account's login" "(^|[^a-zA-Z0-9])$(id -un)([^a-zA-Z0-9]|$)"
-report "this machine's hostname" "(^|[^a-zA-Z0-9.])$(hostname -s)([^a-zA-Z0-9.]|$)"
-report "a personal source tree" '~/(Development|Projects|src|code)/'
+report "a personal source tree" '[~]/(Development|Projects|src|code)/'
+
+# On a CI runner the login and hostname belong to the runner, not the author,
+# and a login of `runner` matches ordinary prose.
+if [[ -n "${CI:-}" ]]; then
+    echo "check-no-private-info: on CI, so the login and hostname checks are skipped."
+else
+    report "this account's login" "(^|[^a-zA-Z0-9])$(id -un)([^a-zA-Z0-9]|$)"
+    report "this machine's hostname" "(^|[^a-zA-Z0-9.])$(hostname -s)([^a-zA-Z0-9.]|$)"
+fi
 
 if [[ $fail -ne 0 ]]; then
     echo
