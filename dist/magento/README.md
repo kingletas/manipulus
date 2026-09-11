@@ -1,6 +1,6 @@
 # Manipulus_Bundles
 
-A small Magento 2 module that does two jobs for [manipulus](https://github.com/kingletas/manipulus):
+A small Magento 2 module that does three jobs for [manipulus](https://github.com/kingletas/manipulus):
 
 1. **It tells RequireJS about the bundles.** The map of which module lives in which bundle
    is contributed as a normal `requirejs-config.js`, so Magento merges it the way it merges
@@ -12,6 +12,10 @@ A small Magento 2 module that does two jobs for [manipulus](https://github.com/k
    payment pages. Change the merged `requirejs-config.js` and its recorded hash stops
    matching, the browser refuses the script, and checkout renders a spinner for ever with
    nothing in the console. `bin/magento manipulus:integrity:refresh` puts them back in step.
+3. **It stops minification renaming the bundles.** With JavaScript minification on, RequireJS
+   asks for `.min.js` in place of every `.js` file unless the file is on Magento's exclusion
+   list. `manipulus build` writes `bundle-<name>.js` only, so the module adds
+   `/manipulus/bundle-` to `dev/js/minify_exclude` in its `etc/config.xml`.
 
 ## Why a module at all
 
@@ -60,6 +64,20 @@ issued before the restart is undone by the restart. Flush *after* everything is 
 
 Note also that the CLI usually runs in a different container from the web tier, so
 restarting one does not clear the other.
+
+## If the bundles 404 as `.min.js`
+
+RequireJS learns the exclusion from `requirejs-min-resolver.min.js`, which the static
+content deploy writes. Check that the deployed copy names the bundles:
+
+```
+grep -c 'manipulus' pub/static/frontend/<Vendor>/<theme>/<locale>/requirejs-min-resolver.min.js
+```
+
+If it prints `0`, either static content was deployed before the module was enabled, so
+deploy it again, or the store sets `dev/js/minify_exclude` itself with `config:set` or in
+`app/etc/env.php`. A single value set there replaces the whole list, Magento's own entries
+included, so add `/manipulus/bundle-` to it.
 
 ## Turning it off
 

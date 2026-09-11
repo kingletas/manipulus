@@ -160,6 +160,7 @@ def test_the_magento_module_is_copied_with_its_real_files(tmp_path):
 
     assert (target / "registration.php").is_file()
     assert (target / "etc" / "module.xml").is_file()
+    assert (target / "etc" / "config.xml").is_file()
     assert (target / "Console" / "Command" / "RefreshIntegrityCommand.php").is_file()
     config = (target / bundler.MODULE_CONFIG).read_text()
     assert "manipulus/bundle-common" in config

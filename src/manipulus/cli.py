@@ -24,10 +24,11 @@ def load_config_and_graph(
     args,
 ) -> tuple[rjsconfig.RequireConfig, graph_module.Graph, Path]:
     theme_root = theme_root_for(Path(args.root).expanduser(), args.theme, args.locale)
-    config_file = theme_root / "requirejs-config.js"
-    if not config_file.is_file():
+    config_file = rjsconfig.find(theme_root)
+    if config_file is None:
+        names = " or ".join(rjsconfig.CONFIG_FILES)
         raise SystemExit(
-            f"manipulus: no requirejs-config.js at {config_file}\n"
+            f"manipulus: no {names} under {theme_root}\n"
             "Deploy static content for this theme and locale first."
         )
     config = rjsconfig.load(config_file)

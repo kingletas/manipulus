@@ -13,6 +13,9 @@ one, at:
 pub/static/<area>/<Vendor>/<theme>/<locale>/requirejs-config.js
 ```
 
+A store that minifies JavaScript deploys it as `requirejs-config.min.js` instead, and
+Manipulus reads whichever one is there.
+
 That merged file is not one configuration object. It's a long series of blocks that each
 look like this:
 

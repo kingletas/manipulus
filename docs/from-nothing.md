@@ -64,7 +64,7 @@ dynamic deps   18 file(s) name a dependency this cannot resolve
 external       29 dependencies left outside bundles
 ```
 
-**If this fails with "no requirejs-config.js", deploy static content first.** It reads what Magento deployed, not what your modules contain:
+**If this fails with "no requirejs-config.min.js or requirejs-config.js", deploy static content first.** It reads what Magento deployed, not what your modules contain:
 
 ```bash
 bin/magento setup:static-content:deploy -f en_US --theme Magento/luma

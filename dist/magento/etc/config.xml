@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Store:etc/config.xsd">
+    <default>
+        <dev>
+            <js>
+                <!-- The bundles are written after the static deploy, under their plain names only. -->
+                <minify_exclude>
+                    <manipulus_bundles>/manipulus/bundle-</manipulus_bundles>
+                </minify_exclude>
+            </js>
+        </dev>
+    </default>
+</config>

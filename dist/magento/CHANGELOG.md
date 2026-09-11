@@ -14,14 +14,19 @@ version tracks that project's.
   is missing for the theme and locale being rendered. Developer mode empties `pub/static`,
   and with the map still in place RequireJS asked for bundles that were gone and a product
   page's JavaScript never started.
+- **The bundles load on a store that minifies JavaScript.** With `dev/js/minify_files` on,
+  RequireJS asked for `bundle-<name>.min.js`, which nothing writes, so every bundle 404'd.
+  The module now adds `/manipulus/bundle-` to `dev/js/minify_exclude` in `etc/config.xml`,
+  and RequireJS asks for the `bundle-<name>.js` that `manipulus build` wrote. Static content
+  has to be deployed after enabling the module for the exclusion to reach RequireJS.
 
 ### Notes
 
 - A merge on the command line always keeps the map. That is where
   `setup:static-content:deploy` runs, and it runs before `manipulus build` writes the
   bundles, so checking there would take the map out of every production deploy.
-- The check looks for the file RequireJS will actually request, so with JavaScript
-  minification on it looks for `bundle-<name>.min.js`.
+- The check looks for the file RequireJS will actually request. With the exclusion in
+  place that is `bundle-<name>.js` whether minification is on or off.
 
 ## [0.5.0] - 2026-09-07
 

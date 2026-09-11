@@ -171,7 +171,8 @@ content deploy will quietly reference modules that have moved.
 - **It can't resolve a computed dependency.** `require([someVariable])` has no literal to
   read. There are usually only a couple in a whole theme, and `graph -v` lists them.
 - **It doesn't minify.** It bundles the files Magento deployed. If you deploy with
-  minification on, the bundle is already minified.
+  minification on, the bundle is already minified. It keeps its plain `bundle-<name>.js`
+  name either way, and the module tells Magento not to ask for a `.min.js` copy of it.
 
 ## Licence
 

@@ -97,3 +97,31 @@ def test_paths_decides_the_file_not_the_id(tmp_path):
 def test_map_still_rewrites_the_id(tmp_path):
     config = load(tmp_path, b"require.config({ map: { '*': { ko: 'knockoutjs/knockout' } } });")
     assert config.resolve("ko") == "knockoutjs/knockout"
+
+
+def test_a_minified_config_reads_the_same_as_the_plain_one(tmp_path):
+    """The shape Magento's JShrink adapter leaves when a store minifies JavaScript."""
+    minified = (
+        b"(function(){var config={map:{'*':{alpha:'Vendor_One/js/alpha'}}};"
+        b"require.config(config);})();"
+        b"(function(){var config={map:{'*':{beta:'Vendor_Two/js/beta'}},deps:['boot']};"
+        b"require.config(config);})();"
+    )
+    assert load(tmp_path, minified).raw == load(tmp_path, TWO_BLOCKS).raw
+
+
+@pytest.mark.parametrize(
+    ("deployed", "found"),
+    [
+        (["requirejs-config.js"], "requirejs-config.js"),
+        (["requirejs-config.min.js"], "requirejs-config.min.js"),
+        (["requirejs-config.js", "requirejs-config.min.js"], "requirejs-config.min.js"),
+        ([], None),
+    ],
+    ids=["plain", "minified", "both", "neither"],
+)
+def test_the_deployed_config_is_found_under_either_name(tmp_path, deployed, found):
+    for name in deployed:
+        (tmp_path / name).write_text("require.config({});")
+    located = rjsconfig.find(tmp_path)
+    assert (located.name if located else None) == found

@@ -11,6 +11,10 @@ from . import jsparse
 
 CONFIG_CALLS = {"require.config", "requirejs.config", "require.s.contexts._.config"}
 
+# A store that minifies JavaScript deploys the minified name only. The minified name
+# comes first because the graph also prefers a module's .min.js when both are deployed.
+CONFIG_FILES = ("requirejs-config.min.js", "requirejs-config.js")
+
 
 def _deep_merge(target: dict[str, Any], source: dict[str, Any]) -> dict[str, Any]:
     for key, value in source.items():
@@ -142,6 +146,15 @@ class RequireConfig:
             elif name.startswith(key + "/") and len(key) > best_len:
                 best, best_len = value + name[len(key) :], len(key)
         return best
+
+
+def find(theme_root: Path) -> Path | None:
+    """The merged config a theme and locale deployed, under whichever name Magento gave it."""
+    for name in CONFIG_FILES:
+        candidate = theme_root / name
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def load(path: Path) -> RequireConfig:
