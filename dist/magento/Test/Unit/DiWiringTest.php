@@ -41,7 +41,7 @@ class DiWiringTest extends TestCase
             $named[] = trim((string) $item);
         }
 
-        foreach ($this->di()->xpath('//type/@name') ?: [] as $name) {
+        foreach ($this->di()->xpath('//type/@name | //plugin/@type') ?: [] as $name) {
             $named[] = trim((string) $name);
         }
 
@@ -67,6 +67,22 @@ class DiWiringTest extends TestCase
 
         $this->assertContains(\Manipulus\Bundles\Console\Command\RefreshIntegrityCommand::class, $registered);
         $this->assertContains(\Manipulus\Bundles\Console\Command\ShowBundlesCommand::class, $registered);
+    }
+
+    public function testTheBundlesMapIsGuardedWhereRequireJsCollectsItsConfig(): void
+    {
+        $collector = \Magento\Framework\RequireJs\Config\File\Collector\Aggregated::class;
+        $plugin = \Manipulus\Bundles\Plugin\WithholdUndeployedBundlesPlugin::class;
+
+        $attached = [];
+        foreach ($this->di()->xpath('//type[@name="' . $collector . '"]/plugin/@type') ?: [] as $type) {
+            $attached[] = trim((string) $type);
+        }
+
+        $this->assertContains($plugin, $attached);
+        // An after method whose name matches nothing public on the target is never called.
+        $this->assertTrue(method_exists($collector, 'getFiles'));
+        $this->assertTrue(method_exists($plugin, 'afterGetFiles'));
     }
 
     public function testTheModuleDeclaresItSequencesAfterWhatItDependsOn(): void

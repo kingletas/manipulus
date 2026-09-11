@@ -6,6 +6,23 @@ All notable changes to this module are documented here. The format follows
 This module ships inside [manipulus](https://github.com/kingletas/manipulus) and its
 version tracks that project's.
 
+## [Unreleased]
+
+### Fixed
+
+- The bundles map is left out of the merged `requirejs-config.js` whenever a bundle it names
+  is missing for the theme and locale being rendered. Developer mode empties `pub/static`,
+  and with the map still in place RequireJS asked for bundles that were gone and a product
+  page's JavaScript never started.
+
+### Notes
+
+- A merge on the command line always keeps the map. That is where
+  `setup:static-content:deploy` runs, and it runs before `manipulus build` writes the
+  bundles, so checking there would take the map out of every production deploy.
+- The check looks for the file RequireJS will actually request, so with JavaScript
+  minification on it looks for `bundle-<name>.min.js`.
+
 ## [0.5.0] - 2026-09-07
 
 ### Added

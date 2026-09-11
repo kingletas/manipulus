@@ -6,6 +6,7 @@ parameters:
     paths:
         - Console
         - Model
+        - Plugin
     excludePaths:
         - Test/*
     treatPhpDocTypesAsCertain: false

@@ -9,5 +9,8 @@
             </argument>
         </arguments>
     </type>
-
+    <type name="Magento\Framework\RequireJs\Config\File\Collector\Aggregated">
+        <plugin name="manipulus_withhold_undeployed_bundles"
+                type="Manipulus\Bundles\Plugin\WithholdUndeployedBundlesPlugin"/>
+    </type>
 </config>

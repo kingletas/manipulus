@@ -8,6 +8,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **An enabled `Manipulus_Bundles` no longer breaks the storefront in developer mode.** Switching to developer mode empties `pub/static`, but the module still contributed its bundles map, so RequireJS asked for bundles that were gone and a product page's JavaScript never started. The module now leaves the map out whenever a bundle it names is missing for the theme and locale being rendered. A static content deploy still keeps it, because `manipulus build` writes the bundles after the deploy, so production behaves as before.
+- The module's README said `manipulus:integrity:refresh -n` reports without writing. The option is `--dry-run`, because the console reserves `-n`.
 - **`make check` passes on a CI runner.** The private-info sweep flagged the runner's own login, `runner`, wherever the word appeared in prose. On CI it now skips the login and hostname checks, which only mean something on the author's machine, and still checks for home paths and personal source trees.
 
 ### Changed

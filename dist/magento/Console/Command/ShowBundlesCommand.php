@@ -10,6 +10,7 @@ namespace Manipulus\Bundles\Console\Command;
 
 use Magento\Framework\App\Filesystem\DirectoryList;
 use Magento\Framework\Filesystem;
+use Manipulus\Bundles\Model\DeployedBundles;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
@@ -23,8 +24,6 @@ class ShowBundlesCommand extends Command
      * The command owns its own name: a rename would break every pipeline that calls it.
      */
     public const NAME = 'manipulus:bundles:show';
-
-    private const BUNDLE_DIR = 'manipulus';
 
     public function __construct(
         private readonly Filesystem $filesystem,
@@ -43,7 +42,7 @@ class ShowBundlesCommand extends Command
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $static = $this->filesystem->getDirectoryRead(DirectoryList::STATIC_VIEW);
-        $found = $static->search('*/*/*/*/' . self::BUNDLE_DIR . '/bundle-*.js');
+        $found = $static->search('*/*/*/*/' . DeployedBundles::DIRECTORY . '/bundle-*.js');
 
         if ($found === []) {
             $output->writeln('<comment>No bundles are deployed. Run manipulus build.</comment>');

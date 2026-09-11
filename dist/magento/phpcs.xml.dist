@@ -9,6 +9,7 @@
 
     <file>Console</file>
     <file>Model</file>
+    <file>Plugin</file>
     <file>Test</file>
     <file>registration.php</file>
 

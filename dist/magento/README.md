@@ -4,7 +4,10 @@ A small Magento 2 module that does two jobs for [manipulus](https://github.com/k
 
 1. **It tells RequireJS about the bundles.** The map of which module lives in which bundle
    is contributed as a normal `requirejs-config.js`, so Magento merges it the way it merges
-   every other module's.
+   every other module's. When Magento merges the config for a page and any bundle the map
+   names is missing for that theme and locale, as after switching to developer mode, the map
+   is left out; a static content deploy always keeps it, because `manipulus build` writes the
+   bundles after the deploy.
 2. **It keeps the integrity hashes honest.** Magento applies subresource integrity to
    payment pages. Change the merged `requirejs-config.js` and its recorded hash stops
    matching, the browser refuses the script, and checkout renders a spinner for ever with
@@ -34,7 +37,7 @@ right, because Magento generates the merged config and its hash together.
 
 | Command | What it does |
 |---|---|
-| `manipulus:integrity:refresh` | Recompute the recorded hashes from the files. `-n` reports without writing. |
+| `manipulus:integrity:refresh` | Recompute the recorded hashes from the files. `--dry-run` reports without writing. |
 | `manipulus:bundles:show` | List the deployed bundles and their sizes. |
 
 Run the refresh whenever a deployed static file changes out of band — which in developer

@@ -1,9 +1,12 @@
 """Writing bundles, and refusing to write one that would be incomplete."""
 
+import json
+import re
 from pathlib import Path
 
 import pytest
 
+from manipulus.analysis.entrypoints import PAGE_TYPES
 from manipulus.analysis.graph import Graph
 from manipulus.bundling import bundler
 from manipulus.bundling.plan import Bundle, Plan
@@ -174,3 +177,33 @@ def test_a_developers_vendor_tree_is_not_copied_into_the_store(tmp_path):
     assert (target / "registration.php").is_file()
     for excluded in bundler.MODULE_EXCLUDED:
         assert not (target / excluded).exists(), f"{excluded} should not be copied"
+
+
+# The two patterns Model/DeployedBundles.php reads the map with; a map it cannot read is withheld.
+MODULE_MAP = re.compile(r"var\s+config\s*=\s*(\{.*\})\s*;?\s*$", re.S)
+MODULE_BUNDLE_ID = re.compile(r"^manipulus/bundle-[A-Za-z0-9_-]+$")
+
+
+def test_the_module_can_read_back_every_bundle_it_names(tmp_path):
+    """The module only contributes its map when each bundle it names is deployed."""
+    names = ["common", *PAGE_TYPES]
+    plan = Plan(
+        theme="t",
+        locale="en_US",
+        bundles=[Bundle(name=name, modules=[f"m/{name}"]) for name in names],
+    )
+    target = tmp_path / "Bundles"
+    bundler.write_magento_module(plan, target)
+
+    match = MODULE_MAP.search((target / bundler.MODULE_CONFIG).read_text("utf-8"))
+    assert match, "the generated map is not in the shape the module reads"
+    bundle_ids = json.loads(match.group(1))["bundles"]
+    assert sorted(bundle_ids) == sorted(f"manipulus/bundle-{name}" for name in names)
+    assert all(MODULE_BUNDLE_ID.match(bundle_id) for bundle_id in bundle_ids)
+
+
+def test_the_shipped_module_names_no_bundles_until_built():
+    shipped = (bundler.module_source() / bundler.MODULE_CONFIG).read_text("utf-8")
+    match = MODULE_MAP.search(shipped)
+    assert match, "the shipped map is not in the shape the module reads"
+    assert json.loads(match.group(1)) == {"bundles": {}}
