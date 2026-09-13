@@ -36,13 +36,19 @@ def _ensure_parser() -> tuple[Parser, Query]:
     return _PARSER, _QUERY
 
 
-def dependency_names(source: bytes) -> tuple[list[str], list[str]]:
-    """Return the literal dependency names in this file, and any that are computed at runtime."""
+def dependency_names(source: bytes) -> tuple[list[str], list[str], list[str]]:
+    """Return this file's static dependency names, its lazy ones, and any computed at runtime.
+
+    A `define([...])` dependency has to be defined before the factory runs, and so does the
+    `require('x')` string form inside a factory. An array-form `require([...], callback)` is
+    asynchronous by definition, so nothing waits for it and it need not be in the same bundle.
+    """
     parser, query = _ensure_parser()
     tree = parser.parse(source)
     captures = QueryCursor(query).captures(tree.root_node)
 
     names: list[str] = []
+    lazy: list[str] = []
     unresolved: list[str] = []
 
     for call in captures.get("call", []):
@@ -77,27 +83,28 @@ def dependency_names(source: bytes) -> tuple[list[str], list[str]]:
                 unresolved.append(raw[:80])
             continue
 
+        collected = names if callee_text in DEFINE_CALLS else lazy
         for element in target.named_children:
             if element.type == "comment":
                 continue
             raw = source[element.start_byte : element.end_byte].decode("utf8", "replace")
             if element.type == "string":
-                names.append(unquote(raw))
+                collected.append(unquote(raw))
             else:
                 unresolved.append(raw[:80])
 
-    return names, unresolved
+    return names, lazy, unresolved
 
 
-def scan_file(job: tuple[str, str]) -> tuple[str, list[str], list[str], str | None]:
-    """Read and scan one file. Returns its module id, names, unresolved names and any error."""
+def scan_file(job: tuple[str, str]) -> tuple[str, list[str], list[str], list[str], str | None]:
+    """Read and scan one file: its id, static names, lazy names, computed names, any error."""
     module_id, path = job
     try:
         source = Path(path).read_bytes()
     except OSError as error:
-        return module_id, [], [], f"could not read {path}: {error}"
+        return module_id, [], [], [], f"could not read {path}: {error}"
     try:
-        names, unresolved = dependency_names(source)
+        names, lazy, unresolved = dependency_names(source)
     except Exception as error:  # noqa: BLE001 - the file is reported, never skipped silently
-        return module_id, [], [], f"could not parse {path}: {error}"
-    return module_id, names, unresolved, None
+        return module_id, [], [], [], f"could not parse {path}: {error}"
+    return module_id, names, lazy, unresolved, None

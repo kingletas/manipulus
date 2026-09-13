@@ -136,3 +136,84 @@ def test_every_strategy_places_each_module_exactly_once(tmp_path):
             for module_id in bundle.modules:
                 seen[module_id] = seen.get(module_id, 0) + 1
         assert [m for m, n in seen.items() if n > 1] == [], strategy
+
+
+def _lazy_graph(tmp_path, names, lazy_edges):
+    """A graph where some modules are reached only through require([...], cb)."""
+    graph = _graph(tmp_path, names)
+    for source, targets in lazy_edges.items():
+        graph.lazy[source] = list(targets)
+    return graph
+
+
+def test_a_lazy_only_module_is_bundled_with_everything_else_by_default(tmp_path):
+    graph = _lazy_graph(tmp_path, ["entry", "on_click"], {"entry": ["on_click"]})
+    config = RequireConfig(raw={}, block_count=1)
+
+    plan = build_plan("t", "en_US", graph, config, {"cms": {"entry"}})
+
+    assert "on_click" in _common(plan)
+    assert plan.deferred_count == 0
+
+
+def test_deferring_moves_a_lazy_only_module_out_of_the_boot_bundles(tmp_path):
+    """Nothing waits for require([...], cb), so the page need not carry it to start."""
+    graph = _lazy_graph(tmp_path, ["entry", "on_click"], {"entry": ["on_click"]})
+    config = RequireConfig(raw={}, block_count=1)
+
+    plan = build_plan("t", "en_US", graph, config, {"cms": {"entry"}}, defer_lazy=True)
+
+    assert "on_click" not in _common(plan)
+    assert "on_click" in _named(plan, "deferred")
+    assert plan.deferred_count == 1
+
+
+def test_a_module_needed_at_boot_anywhere_is_never_deferred(tmp_path):
+    """One page reaching it lazily does not excuse the page that needs it to start."""
+    graph = _lazy_graph(tmp_path, ["entry", "shared_mod"], {"entry": ["shared_mod"]})
+    graph.edges["other"] = ["shared_mod"]
+    graph.files["other"] = tmp_path / "other.js"
+    config = RequireConfig(raw={}, block_count=1)
+
+    plan = build_plan(
+        "t", "en_US", graph, config, {"cms": {"entry"}, "cart": {"other"}}, defer_lazy=True
+    )
+
+    assert plan.bundle_for("shared_mod") != "deferred"
+    assert plan.deferred_count == 0
+
+
+def test_deferring_still_places_every_module_exactly_once(tmp_path):
+    names = ["entry"] + [f"lazy{i}" for i in range(14)]
+    graph = _lazy_graph(tmp_path, names, {"entry": [f"lazy{i}" for i in range(14)]})
+    config = RequireConfig(raw={}, block_count=1)
+
+    plan = build_plan(
+        "t",
+        "en_US",
+        graph,
+        config,
+        {"cms": {"entry"}, "cart": {"entry"}},
+        defer_lazy=True,
+    )
+
+    seen: dict[str, int] = {}
+    for bundle in plan.bundles:
+        for module_id in bundle.modules:
+            seen[module_id] = seen.get(module_id, 0) + 1
+    assert [m for m, n in seen.items() if n > 1] == []
+
+
+def test_nothing_is_lost_when_deferring(tmp_path):
+    """Every module that was bundled before is still bundled, somewhere."""
+    names = ["entry"] + [f"lazy{i}" for i in range(6)]
+    graph = _lazy_graph(tmp_path, names, {"entry": [f"lazy{i}" for i in range(6)]})
+    config = RequireConfig(raw={}, block_count=1)
+    pages = {"cms": {"entry"}, "cart": {"entry"}}
+
+    before = build_plan("t", "en_US", graph, config, pages)
+    after = build_plan("t", "en_US", graph, config, pages, defer_lazy=True)
+
+    assert {m for b in before.bundles for m in b.modules} == {
+        m for b in after.bundles for m in b.modules
+    }

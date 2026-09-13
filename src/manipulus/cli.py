@@ -11,7 +11,7 @@ from .analysis import entrypoints, rjsconfig, stylesheets
 from .analysis import graph as graph_module
 from .bundling import bundler
 from .bundling import plan as plan_module
-from .magento import integrity
+from .magento import deployed, integrity
 
 DEFAULT_PLAN = "manipulus.plan.json"
 
@@ -43,6 +43,8 @@ def collect_entry_points(args, config, graph) -> tuple[dict[str, set[str]], dict
     per_page: dict[str, set[str]] = {}
     sources: dict[str, str] = {}
 
+    only = getattr(args, "url_entries", "add") == "only"
+
     index = entrypoints.SourceIndex(source_roots)
     for page_type in entrypoints.PAGE_TYPES:
         found = entrypoints.from_templates(page_type, source_roots, index=index)
@@ -50,8 +52,10 @@ def collect_entry_points(args, config, graph) -> tuple[dict[str, set[str]], dict
         if page_type in urls:
             html = entrypoints.fetch(urls[page_type], timeout=args.timeout)
             harvested = entrypoints.from_html(html, page_type, urls[page_type])
-            found.names |= harvested.names
-            source = "static+html"
+            # `only` believes the page over the layout: what a rendered page asked for is
+            # evidence, and what the templates might ask for is a superset of it.
+            found.names = harvested.names if only else found.names | harvested.names
+            source = "html" if only else "static+html"
         per_page[page_type] = found.names
         sources[page_type] = source
     return per_page, sources
@@ -94,15 +98,23 @@ def cmd_plan(args) -> int:
         per_page=per_page,
         entry_sources=sources,
         common_strategy=args.common,
+        defer_lazy=args.defer,
     )
     out = Path(args.out).expanduser()
     plan_module.write(plan, out)
 
-    print(f"plan written to {out}   (common: {args.common})")
+    deferring = ", deferring what nothing needs at boot" if args.defer else ""
+    print(f"plan written to {out}   (common: {args.common}{deferring})")
+    width = max((len(b.name) for b in plan.bundles), default=12)
     for bundle in plan.bundles:
         origin = sources.get(bundle.name, "derived")
-        print(f"  {bundle.name:12s} {len(bundle.modules):5d} modules   ({origin})")
-    print(f"  {'unbundled':12s} {len(plan.unreached):5d} modules reached by no page type")
+        print(f"  {bundle.name:{width}s} {len(bundle.modules):5d} modules   ({origin})")
+    print(f"  {'unbundled':{width}s} {len(plan.unreached):5d} modules reached by no page type")
+    if plan.deferred_count:
+        print(
+            f"  {plan.deferred_count} module(s) are reached only through require([...], cb), "
+            "so no page waits for them."
+        )
     return 0
 
 
@@ -233,6 +245,24 @@ def cmd_check(args) -> int:
     return 1 if findings else 0
 
 
+def cmd_verify(args) -> int:
+    """Report only what a browser would fail on. Silence means the deploy is sound."""
+    theme_root = theme_root_for(Path(args.root).expanduser(), args.theme, args.locale)
+
+    findings: list[str] = []
+    try:
+        findings.extend(deployed.verify_bundles(theme_root))
+        for url in args.url or []:
+            findings.extend(deployed.verify_page(url, timeout=args.timeout))
+    except deployed.DeployedError as error:
+        print(f"manipulus: {error}", file=sys.stderr)
+        return 1
+
+    for finding in findings:
+        print(f"manipulus: {finding}", file=sys.stderr)
+    return 1 if findings else 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="manipulus",
@@ -274,6 +304,21 @@ def build_parser() -> argparse.ArgumentParser:
         "types that shares enough of them (cluster, the default), or all of them in "
         "common (shared)",
     )
+    p.add_argument(
+        "--url-entries",
+        choices=["add", "only"],
+        default="add",
+        help="what a --url is for: evidence on top of what the templates say (add, the "
+        "default), or the whole answer for that page type (only). `only` is smaller and "
+        "blind to anything that page did not render",
+    )
+    p.add_argument(
+        "--defer",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="put modules reached only through require([...], cb) in bundles of their "
+        "own, which RequireJS fetches when something finally asks for them",
+    )
     p.set_defaults(func=cmd_plan)
 
     p = sub.add_parser("build", parents=[common, planned], help="Write the bundles")
@@ -304,6 +349,20 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("explain", parents=[planned], help="Say why a module is bundled")
     p.add_argument("module")
     p.set_defaults(func=cmd_explain)
+
+    p = sub.add_parser(
+        "verify",
+        parents=[common],
+        help="Silent unless the deployed bundles are broken",
+    )
+    p.add_argument(
+        "--url",
+        action="append",
+        metavar="URL",
+        help="also check that every script this page asks for is one the server hands over",
+    )
+    p.add_argument("--timeout", type=float, default=30.0)
+    p.set_defaults(func=cmd_verify)
 
     p = sub.add_parser("check", parents=[common, planned], help="Silent unless the plan is stale")
     p.set_defaults(func=cmd_check)

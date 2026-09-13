@@ -12,6 +12,9 @@ from ..analysis.rjsconfig import RequireConfig
 
 COMMON = "common"
 
+# Bundles nothing needs before a page can run; RequireJS fetches them on demand.
+DEFERRED = "deferred"
+
 # RequireJS keeps one owner per module, so every strategy here has to place a
 # module exactly once.
 STRATEGIES = ("shared", "cluster")
@@ -45,6 +48,7 @@ class Plan:
     reasons: dict[str, list[str]] = field(default_factory=dict)
     unreached: list[str] = field(default_factory=list)
     common_strategy: str = "cluster"
+    deferred_count: int = 0
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), indent=2, sort_keys=True)
@@ -109,6 +113,47 @@ def _verify_single_owner(bundles: list[Bundle]) -> None:
         )
 
 
+def _group(
+    closures: dict[str, set[str]],
+    always: set[str],
+    strategy: str,
+    common_excludes: tuple[str, ...],
+    cluster_minimum: int,
+) -> tuple[set[str], dict[str, set[str]]]:
+    """Decide what is shared by everything and what each group of page types shares."""
+    reach = _reach(closures)
+    shared: dict[str, set[str]] = {}
+
+    if strategy == "shared":
+        # Common is what every voting page loads, then anything two or more pages load
+        # joins it, so no module is left for two page bundles to claim.
+        voters = [p for p in closures if p not in common_excludes] or list(closures)
+        common = set.intersection(*(closures[p] for p in voters)) if voters else set()
+        common |= always
+        common |= {m for m, seen in reach.items() if len(seen) > 1}
+        return common, shared
+
+    # Common is what every page loads. Each other group of page types that shares
+    # enough modules gets its own bundle, so a page carries only what it can use.
+    every_page = set(closures)
+    common = set(always)
+    common |= {m for m, seen in reach.items() if seen == every_page}
+
+    groups: dict[frozenset[str], set[str]] = {}
+    for module_id, seen in reach.items():
+        if module_id in common or len(seen) < 2:
+            continue
+        groups.setdefault(frozenset(seen), set()).add(module_id)
+
+    for seen, modules in groups.items():
+        if len(modules) >= cluster_minimum:
+            shared["-".join(sorted(seen))] = modules
+        else:
+            common |= modules
+
+    return common, shared
+
+
 def build_plan(
     theme: str,
     locale: str,
@@ -119,6 +164,7 @@ def build_plan(
     common_excludes: tuple[str, ...] = ("checkout",),
     common_strategy: str = "cluster",
     cluster_minimum: int = CLUSTER_MINIMUM,
+    defer_lazy: bool = False,
 ) -> Plan:
     """Compute the common bundle, any shared bundles, and one bundle per page type."""
     if common_strategy == "intersect":
@@ -137,41 +183,32 @@ def build_plan(
     always_closure, always_trace = graph.closure(always)
 
     closures: dict[str, set[str]] = {}
+    boot: dict[str, set[str]] = {}
     traces: dict[str, dict[str, str | None]] = {}
     for page_type, names in per_page.items():
         entries, _missing = resolve_entries(names, config, graph)
         reached, came_from = graph.closure(entries + always)
         closures[page_type] = reached
+        boot[page_type] = graph.closure(entries + always, include_lazy=False)[0]
         traces[page_type] = came_from
 
-    reach = _reach(closures)
-    shared_bundles: dict[str, set[str]] = {}
+    # A module nothing needs before it can run goes in a bundle of its own, which
+    # RequireJS fetches only when something finally asks for it.
+    needed_at_boot = set().union(*boot.values()) if boot else set()
+    deferred = (
+        {m for page in closures.values() for m in page if m not in needed_at_boot}
+        if defer_lazy
+        else set()
+    )
+    plan.deferred_count = len(deferred)
 
-    if common_strategy == "shared":
-        # Common is what every voting page loads, then anything two or more pages load
-        # joins it, so no module is left for two page bundles to claim.
-        voters = [p for p in closures if p not in common_excludes] or list(closures)
-        common_modules = set.intersection(*(closures[p] for p in voters)) if voters else set()
-        common_modules |= always_closure
-        common_modules |= {m for m, seen in reach.items() if len(seen) > 1}
-    else:
-        # Common is what every page loads. Each other group of page types that shares
-        # enough modules gets its own bundle, so a page carries only what it can use.
-        every_page = set(closures)
-        common_modules = set(always_closure)
-        common_modules |= {m for m, seen in reach.items() if seen == every_page}
-
-        groups: dict[frozenset[str], set[str]] = {}
-        for module_id, seen in reach.items():
-            if module_id in common_modules or len(seen) < 2:
-                continue
-            groups.setdefault(frozenset(seen), set()).add(module_id)
-
-        for seen, modules in groups.items():
-            if len(modules) >= cluster_minimum:
-                shared_bundles["-".join(sorted(seen))] = modules
-            else:
-                common_modules |= modules
+    common_modules, shared_bundles = _group(
+        {p: modules - deferred for p, modules in closures.items()},
+        always_closure - deferred,
+        common_strategy,
+        common_excludes,
+        cluster_minimum,
+    )
 
     plan.bundles.append(
         Bundle(name=COMMON, modules=sorted(common_modules), page_types=sorted(closures))
@@ -185,9 +222,15 @@ def build_plan(
         placed |= modules
 
     for page_type in sorted(closures):
-        remainder = sorted(closures[page_type] - placed)
+        remainder = sorted(closures[page_type] - deferred - placed)
         if remainder:
             plan.bundles.append(Bundle(name=page_type, modules=remainder, page_types=[page_type]))
+            placed |= set(remainder)
+
+    if deferred:
+        _append_deferred(
+            plan, closures, deferred, placed, common_strategy, common_excludes, cluster_minimum
+        )
 
     _verify_single_owner(plan.bundles)
 
@@ -209,6 +252,46 @@ def build_plan(
     bundled = {m for b in plan.bundles for m in b.modules}
     plan.unreached = sorted(set(graph.files) - bundled)
     return plan
+
+
+def _append_deferred(
+    plan: Plan,
+    closures: dict[str, set[str]],
+    deferred: set[str],
+    placed: set[str],
+    strategy: str,
+    common_excludes: tuple[str, ...],
+    cluster_minimum: int,
+) -> None:
+    """Group the deferred modules the same way, under names of their own."""
+    lazy_closures = {p: modules & deferred for p, modules in closures.items()}
+    common, shared = _group(lazy_closures, set(), strategy, common_excludes, cluster_minimum)
+
+    if common:
+        plan.bundles.append(
+            Bundle(name=DEFERRED, modules=sorted(common), page_types=sorted(closures))
+        )
+        placed |= common
+
+    for name in sorted(shared):
+        plan.bundles.append(
+            Bundle(
+                name=f"{DEFERRED}-{name}",
+                modules=sorted(shared[name]),
+                page_types=sorted(name.split("-")),
+            )
+        )
+        placed |= shared[name]
+
+    for page_type in sorted(lazy_closures):
+        remainder = sorted(lazy_closures[page_type] - placed)
+        if remainder:
+            plan.bundles.append(
+                Bundle(
+                    name=f"{DEFERRED}-{page_type}", modules=remainder, page_types=[page_type]
+                )
+            )
+            placed |= set(remainder)
 
 
 def write(plan: Plan, path: Path) -> None:

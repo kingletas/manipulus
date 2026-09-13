@@ -125,6 +125,41 @@ manipulus plan --root /path/to/magento \
 The plan records which page types were sharpened this way, so an approximation is never
 mistaken for an exact answer.
 
+### Evidence on top of the layout, or instead of it
+
+By default a rendered page is added to what the templates said. `--url-entries only` makes
+it the whole answer for that page type instead.
+
+```
+manipulus plan --root /path/to/magento --url-entries only \
+    --url category=https://store.test/some-category.html
+```
+
+The two answer different questions. The layout pass asks what a page of this type *could*
+load, which is a union over every variant of it. A rendered page says what one real page
+*did* ask for, which is smaller and blind to anything that page did not happen to render.
+
+Measured on a store with 578,000 products and a custom theme, `only` took the shared bundle
+from 270 modules to 158, and a category page from 3,862 KB to 3,213 KB with the same
+components initialising. **Nothing breaks when it guesses low**: a module in no bundle is
+fetched on its own, which costs a request rather than a feature.
+
+`add` stays the default, because the safe failure is carrying a module you did not need.
+
+### Deferring what nothing waits for
+
+A `define([...])` dependency has to be there before the factory runs. An array-form
+`require([...], callback)` is asynchronous, so nothing waits for it. `--defer` puts modules
+reached only that way into bundles of their own, which RequireJS fetches when something
+finally asks.
+
+```
+manipulus plan --root /path/to/magento --defer
+```
+
+**Expect this to be small.** On the store above it moved 13 modules out of 816. It is
+correct, it costs nothing, and it is not where the weight is.
+
 ### Wiring the bundles into Magento
 
 `build --module app/code/Manipulus/Bundles` writes the bundles and installs a small Magento
@@ -177,6 +212,26 @@ make check-all          # both projects at once
 `manipulus check` says nothing when the plan matches what's deployed, and names what's
 wrong when it doesn't. Run it after a deploy — a plan built against an older static
 content deploy will quietly reference modules that have moved.
+
+## Checking a deploy is still sound
+
+`manipulus check` reads a plan. `manipulus verify` reads what is actually deployed, which
+is a different question and the one a browser answers.
+
+```
+manipulus verify --root /path/to/magento
+manipulus verify --root /path/to/magento --url https://store.test/some-category.html
+```
+
+It is silent and exits 0 when the deploy is sound. It exits 1 and names the problem when a
+bundle the map promises is not deployed, when a bundle claims a module it does not define,
+or, with `--url`, when a script the page asks for is one the server will not hand over.
+
+**This is worth having in a deploy pipeline.** The fault it exists for was found on a real
+store: a static content deploy moved the version forward, nothing rebuilt the bundles
+behind it, and every page referenced two files that returned 404. No log said so, no check
+failed, and the page still rendered. The store served 2.7 MB of JavaScript in roughly 170
+separate requests instead of two, for as long as nobody opened a browser network panel.
 
 ## What it can't do
 

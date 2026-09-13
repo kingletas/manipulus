@@ -25,6 +25,7 @@ class Graph:
     """Every module found in a deployed theme, and what each one depends on."""
 
     edges: dict[str, list[str]] = field(default_factory=dict)
+    lazy: dict[str, list[str]] = field(default_factory=dict)
     files: dict[str, Path] = field(default_factory=dict)
     dynamic: dict[str, list[str]] = field(default_factory=dict)
     external: dict[str, list[str]] = field(default_factory=dict)
@@ -34,8 +35,13 @@ class Graph:
         """Every dependency left outside the bundles, deduplicated."""
         return {name for names in self.external.values() for name in names}
 
-    def dependencies(self, module_id: str) -> list[str]:
-        return self.edges.get(module_id, [])
+    def dependencies(self, module_id: str, include_lazy: bool = True) -> list[str]:
+        """What this module needs. Without the lazy ones, what it needs before it can run."""
+        static = self.edges.get(module_id, [])
+        if not include_lazy:
+            return static
+        deferred = self.lazy.get(module_id, [])
+        return static if not deferred else [*static, *(d for d in deferred if d not in static)]
 
     @property
     def module_count(self) -> int:
@@ -45,7 +51,13 @@ class Graph:
     def edge_count(self) -> int:
         return sum(len(v) for v in self.edges.values())
 
-    def closure(self, entries: list[str]) -> tuple[set[str], dict[str, str | None]]:
+    @property
+    def lazy_edge_count(self) -> int:
+        return sum(len(v) for v in self.lazy.values())
+
+    def closure(
+        self, entries: list[str], include_lazy: bool = True
+    ) -> tuple[set[str], dict[str, str | None]]:
         """Walk out from the entry points, returning what is reachable and how each was reached."""
         reached: set[str] = set()
         came_from: dict[str, str | None] = {}
@@ -58,7 +70,7 @@ class Graph:
             queue.append(entry)
         while queue:
             current = queue.popleft()
-            for dependency in self.dependencies(current):
+            for dependency in self.dependencies(current, include_lazy):
                 if dependency in reached:
                     continue
                 reached.add(dependency)
@@ -122,22 +134,23 @@ def build(theme_root: Path, config: RequireConfig, workers: int | None = None) -
     else:
         results = [scan_file(job) for job in jobs]
 
-    for module_id, names, dynamic, error in results:
+    for module_id, names, lazy_names, dynamic, error in results:
         if error:
             failures.append(error)
             continue
-        resolved: list[str] = []
         outside: list[str] = []
-        for name in [*names, *config.shim_deps(module_id)]:
-            target = config.resolve(name, referrer=module_id)
-            identifier = bundle_id(target)
-            if identifier is None:
-                if target not in outside:
-                    outside.append(target)
-                continue
-            if identifier not in resolved:
-                resolved.append(identifier)
+        # A shim's dependencies load before the shimmed file, so they are static.
+        resolved = _resolve_all(
+            [*names, *config.shim_deps(module_id)], module_id, config, outside
+        )
+        deferred = [
+            identifier
+            for identifier in _resolve_all(lazy_names, module_id, config, outside)
+            if identifier not in resolved
+        ]
         graph.edges[module_id] = resolved
+        if deferred:
+            graph.lazy[module_id] = deferred
         if dynamic:
             graph.dynamic[module_id] = dynamic
         if outside:
@@ -152,6 +165,23 @@ def build(theme_root: Path, config: RequireConfig, workers: int | None = None) -
     _apply_mixins(graph, config)
     _partition_unbacked(graph)
     return graph
+
+
+def _resolve_all(
+    names: list[str], module_id: str, config: RequireConfig, outside: list[str]
+) -> list[str]:
+    """Turn written names into module ids, collecting anything that resolves outside the theme."""
+    resolved: list[str] = []
+    for name in names:
+        target = config.resolve(name, referrer=module_id)
+        identifier = bundle_id(target)
+        if identifier is None:
+            if target not in outside:
+                outside.append(target)
+            continue
+        if identifier not in resolved:
+            resolved.append(identifier)
+    return resolved
 
 
 def _alias_paths(graph: Graph, config: RequireConfig) -> None:
@@ -176,14 +206,15 @@ def _partition_unbacked(graph: Graph) -> None:
     shim is one -- so they are real dependencies with nothing to bundle. They are
     dropped from the edges and listed, never dropped in silence.
     """
-    for module_id, targets in graph.edges.items():
-        backed = [t for t in targets if t in graph.files]
-        if len(backed) == len(targets):
-            continue
-        unbacked = [t for t in targets if t not in graph.files]
-        graph.edges[module_id] = backed
-        listed = graph.external.setdefault(module_id, [])
-        listed.extend(t for t in unbacked if t not in listed)
+    for edges in (graph.edges, graph.lazy):
+        for module_id, targets in edges.items():
+            backed = [t for t in targets if t in graph.files]
+            if len(backed) == len(targets):
+                continue
+            unbacked = [t for t in targets if t not in graph.files]
+            edges[module_id] = backed
+            listed = graph.external.setdefault(module_id, [])
+            listed.extend(t for t in unbacked if t not in listed)
 
 
 def _apply_mixins(graph: Graph, config: RequireConfig) -> None:

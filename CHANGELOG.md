@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **`manipulus verify` checks what is deployed rather than what a plan says should be.** It is silent and exits 0 when every bundle the map promises is on disk and defines every module it claims, and with `--url` when every script a rendered page asks for is one the server hands over. The fault it exists for was found on a real store: a static content deploy moved the version forward, nothing rebuilt the bundles behind it, and every page referenced two files that returned 404. No log said so, no check failed, the page still rendered, and the store served 2.7 MB of JavaScript in roughly 170 separate requests instead of two.
+- **`--url-entries only` believes a rendered page over the layout for that page type.** The layout pass asks what a page of this type could load, which is a union over every variant; a rendered page says what one real page did ask for. On a store with 578,000 products and a custom theme it took the shared bundle from 270 modules to 158 and a category page from 3,862 KB to 3,213 KB with the same components initialising. `add` stays the default, because carrying a module you did not need is the safer failure, and a module in no bundle is fetched on its own rather than lost.
+- **`--defer` separates modules nothing waits for.** A `define([...])` dependency has to be there before the factory runs; an array-form `require([...], callback)` is asynchronous, so a module reached only that way goes in a bundle of its own that RequireJS fetches when something finally asks. Expect it to be small: on the store above it moved 13 modules out of 816.
+
 ### Fixed
 
 - **A plan can no longer name one module in two bundles, which was making pages fetch bundles they had no use for.** A RequireJS `bundles` map records one owner per module, so when the same module was listed under several page bundles the last listing won and the earlier bundles silently lost it. On a store with sample data, 92 modules were listed twice or more: `bundle-cart` kept 23 of its 108 modules and `bundle-category` 5 of 13, so a cart page had to fetch all four bundles to reach its own code, and a category page fetched the whole checkout bundle to run five captcha files. The planner now refuses any plan that places a module twice, and says which module and which bundles.
