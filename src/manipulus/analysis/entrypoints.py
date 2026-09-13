@@ -235,7 +235,7 @@ def _module_name_for(package_dir: Path) -> str | None:
     name = package_dir.name
     if name.startswith("module-"):
         vendor = package_dir.parent.name
-        rest = "".join(part.capitalize() for part in name[len("module-"):].split("-"))
+        rest = "".join(part.capitalize() for part in name[len("module-") :].split("-"))
         return f"{vendor.capitalize()}_{rest}"
     return None
 

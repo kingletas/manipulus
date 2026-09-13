@@ -35,7 +35,7 @@ def test_comments_do_not_become_dependencies():
 
 
 def test_both_quote_styles_work():
-    assert names('define(["a/one", \'b/two\'], function () {});') == ["a/one", "b/two"]
+    assert names("define([\"a/one\", 'b/two'], function () {});") == ["a/one", "b/two"]
 
 
 def test_commonjs_sugar_dependencies_are_found():

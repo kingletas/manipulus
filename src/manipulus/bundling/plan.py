@@ -12,6 +12,18 @@ from ..analysis.rjsconfig import RequireConfig
 
 COMMON = "common"
 
+# RequireJS keeps one owner per module, so every strategy here has to place a
+# module exactly once.
+STRATEGIES = ("shared", "cluster")
+
+# Below this, a group of page types does not earn the extra request and its
+# modules go to common instead.
+CLUSTER_MINIMUM = 10
+
+
+class PlanError(RuntimeError):
+    """A plan was asked for that cannot be expressed as a RequireJS bundles map."""
+
 
 @dataclass
 class Bundle:
@@ -32,7 +44,7 @@ class Plan:
     entry_sources: dict[str, str] = field(default_factory=dict)
     reasons: dict[str, list[str]] = field(default_factory=dict)
     unreached: list[str] = field(default_factory=list)
-    common_strategy: str = "intersect"
+    common_strategy: str = "cluster"
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), indent=2, sort_keys=True)
@@ -68,6 +80,35 @@ def resolve_entries(
     return resolved, missing
 
 
+def _reach(closures: dict[str, set[str]]) -> dict[str, set[str]]:
+    """Map each module to the set of page types that load it."""
+    reach: dict[str, set[str]] = {}
+    for page_type, modules in closures.items():
+        for module_id in modules:
+            reach.setdefault(module_id, set()).add(page_type)
+    return reach
+
+
+def _verify_single_owner(bundles: list[Bundle]) -> None:
+    """Refuse a plan that names one module in two bundles.
+
+    RequireJS builds module-to-bundle from this and keeps the last one it reads, so
+    the earlier bundle silently loses the module and pages fetch bundles they never use.
+    """
+    owners: dict[str, list[str]] = {}
+    for bundle in bundles:
+        for module_id in bundle.modules:
+            owners.setdefault(module_id, []).append(bundle.name)
+    clashes = {m: names for m, names in owners.items() if len(names) > 1}
+    if clashes:
+        example = sorted(clashes)[0]
+        raise PlanError(
+            f"{len(clashes)} module(s) were placed in more than one bundle, "
+            f"for example {example} in {', '.join(clashes[example])}. "
+            "A RequireJS bundles map records one owner per module."
+        )
+
+
 def build_plan(
     theme: str,
     locale: str,
@@ -76,11 +117,19 @@ def build_plan(
     per_page: dict[str, set[str]],
     entry_sources: dict[str, str] | None = None,
     common_excludes: tuple[str, ...] = ("checkout",),
-    common_strategy: str = "intersect",
+    common_strategy: str = "cluster",
+    cluster_minimum: int = CLUSTER_MINIMUM,
 ) -> Plan:
-    """Compute the common bundle and one bundle per page type."""
-    if common_strategy not in ("intersect", "shared"):
-        raise ValueError(f"unknown common strategy: {common_strategy}")
+    """Compute the common bundle, any shared bundles, and one bundle per page type."""
+    if common_strategy == "intersect":
+        raise PlanError(
+            "the intersect strategy cannot be expressed as a RequireJS bundles map, "
+            "because a module wanted by two page types would be listed twice and only "
+            "the last listing would win. Use shared, or cluster."
+        )
+    if common_strategy not in STRATEGIES:
+        raise PlanError(f"unknown common strategy: {common_strategy}")
+
     plan = Plan(theme=theme, locale=locale, entry_sources=dict(entry_sources or {}))
     plan.common_strategy = common_strategy
 
@@ -95,37 +144,52 @@ def build_plan(
         closures[page_type] = reached
         traces[page_type] = came_from
 
-    # A module belongs in common when every page type that is allowed to vote loads it.
-    voters = [p for p in closures if p not in common_excludes] or list(closures)
-    common_modules = set.intersection(*(closures[p] for p in voters)) if voters else set()
-    common_modules |= always_closure
+    reach = _reach(closures)
+    shared_bundles: dict[str, set[str]] = {}
 
-    # A module wanted by several page types but not all of them has no obviously right
-    # home, and the two answers trade against each other:
-    #
-    #   "intersect"  leave it in each page bundle that wants it. Smallest download for a
-    #                visitor who sees one page, but its bytes ship more than once and the
-    #                RequireJS map records only one owner, so a page can end up fetching
-    #                an unrelated bundle to reach it.
-    #   "shared"     promote it to common. Nothing ships twice and ownership is exact,
-    #                but every page pays for it, and on this store that made checkout's
-    #                JavaScript more than twice as large.
-    #
-    # Neither is free, so the caller picks and the report says which was used.
     if common_strategy == "shared":
-        shared: dict[str, int] = {}
-        for page_type in closures:
-            for module_id in closures[page_type] - common_modules:
-                shared[module_id] = shared.get(module_id, 0) + 1
-        common_modules |= {m for m, count in shared.items() if count > 1}
+        # Common is what every voting page loads, then anything two or more pages load
+        # joins it, so no module is left for two page bundles to claim.
+        voters = [p for p in closures if p not in common_excludes] or list(closures)
+        common_modules = set.intersection(*(closures[p] for p in voters)) if voters else set()
+        common_modules |= always_closure
+        common_modules |= {m for m, seen in reach.items() if len(seen) > 1}
+    else:
+        # Common is what every page loads. Each other group of page types that shares
+        # enough modules gets its own bundle, so a page carries only what it can use.
+        every_page = set(closures)
+        common_modules = set(always_closure)
+        common_modules |= {m for m, seen in reach.items() if seen == every_page}
+
+        groups: dict[frozenset[str], set[str]] = {}
+        for module_id, seen in reach.items():
+            if module_id in common_modules or len(seen) < 2:
+                continue
+            groups.setdefault(frozenset(seen), set()).add(module_id)
+
+        for seen, modules in groups.items():
+            if len(modules) >= cluster_minimum:
+                shared_bundles["-".join(sorted(seen))] = modules
+            else:
+                common_modules |= modules
 
     plan.bundles.append(
         Bundle(name=COMMON, modules=sorted(common_modules), page_types=sorted(closures))
     )
+    placed = set(common_modules)
+    for name in sorted(shared_bundles):
+        modules = shared_bundles[name]
+        plan.bundles.append(
+            Bundle(name=name, modules=sorted(modules), page_types=sorted(name.split("-")))
+        )
+        placed |= modules
+
     for page_type in sorted(closures):
-        remainder = sorted(closures[page_type] - common_modules)
+        remainder = sorted(closures[page_type] - placed)
         if remainder:
             plan.bundles.append(Bundle(name=page_type, modules=remainder, page_types=[page_type]))
+
+    _verify_single_owner(plan.bundles)
 
     for page_type, came_from in traces.items():
         for module_id in closures[page_type]:

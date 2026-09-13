@@ -81,7 +81,7 @@ manipulus plan --root /path/to/magento --theme frontend/Magento/luma
 ```
 
 ```text
-plan written to manipulus.plan.json   (common: intersect)
+plan written to manipulus.plan.json   (common: cluster)
   common         161 modules   (static)
   cart           133 modules   (static)
   category        14 modules   (static)

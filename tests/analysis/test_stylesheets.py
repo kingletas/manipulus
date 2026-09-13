@@ -30,7 +30,7 @@ def test_class_names_are_collected_including_inside_media_queries():
 
 
 def test_classes_on_a_page_are_read_from_class_attributes():
-    html = '<div class="header nav"><span class=\'footer\'></span></div>'
+    html = "<div class=\"header nav\"><span class='footer'></span></div>"
     assert stylesheets.classes_on_page(html) == {"header", "nav", "footer"}
 
 

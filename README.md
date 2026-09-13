@@ -91,6 +91,21 @@ manipulus build --root /path/to/magento --theme frontend/Magento/luma
 
 `build` takes `-n` to show you what it would write without writing it. Always run that first.
 
+### Where a module several pages load ends up
+
+A RequireJS bundles map records one owner per module, so a module cannot sit in two
+bundles. `--common` decides where the shared ones go:
+
+- **`cluster`**, the default. Each group of page types that shares enough modules gets
+  its own bundle, so a home page does not carry checkout code. A group smaller than the
+  minimum goes to `common` instead, because one extra request for a handful of modules
+  costs more than carrying them everywhere.
+- **`shared`**. Everything two or more pages load goes to `common`. Every page then
+  fetches exactly two files, at the cost of carrying code it will not run.
+
+Whichever you pick, the planner refuses to write a plan that places a module twice, and
+names the module and the bundles that wanted it.
+
 ### Sharpening a page type with a real URL
 
 The static pass finds entry points from layout XML and templates. A handful of components

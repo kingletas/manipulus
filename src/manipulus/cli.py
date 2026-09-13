@@ -62,14 +62,18 @@ def cmd_graph(args) -> int:
     print(f"theme          {theme_root}")
     print(f"config blocks  {config.block_count}")
     shape = bundler.unused_config(config)
-    print(f"config shape   map {shape['map']}  paths {shape['paths']}  "
-          f"shim {shape['shim']}  deps {shape['deps']}  mixins {shape['mixins']}")
+    print(
+        f"config shape   map {shape['map']}  paths {shape['paths']}  "
+        f"shim {shape['shim']}  deps {shape['deps']}  mixins {shape['mixins']}"
+    )
     print(f"modules        {graph.module_count}")
     print(f"edges          {graph.edge_count}")
     print(f"dynamic deps   {len(graph.dynamic)} file(s) name a dependency this cannot resolve")
     external = graph.external_names
-    print(f"external       {len(external)} dependencies left outside bundles "
-          f"(remote URLs, runtime-registered, generated)")
+    print(
+        f"external       {len(external)} dependencies left outside bundles "
+        f"(remote URLs, runtime-registered, generated)"
+    )
     if args.verbose and external:
         for name in sorted(external)[:20]:
             print(f"  {name}")
@@ -264,10 +268,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--timeout", type=float, default=30.0)
     p.add_argument(
         "--common",
-        choices=["intersect", "shared"],
-        default="intersect",
-        help="what goes in the common bundle: only what every page loads (intersect, "
-        "the default), or anything two or more pages load (shared)",
+        choices=["cluster", "shared"],
+        default="cluster",
+        help="how modules several pages load are placed: one bundle per group of page "
+        "types that shares enough of them (cluster, the default), or all of them in "
+        "common (shared)",
     )
     p.set_defaults(func=cmd_plan)
 

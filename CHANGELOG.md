@@ -8,6 +8,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- **A plan can no longer name one module in two bundles, which was making pages fetch bundles they had no use for.** A RequireJS `bundles` map records one owner per module, so when the same module was listed under several page bundles the last listing won and the earlier bundles silently lost it. On a store with sample data, 92 modules were listed twice or more: `bundle-cart` kept 23 of its 108 modules and `bundle-category` 5 of 13, so a cart page had to fetch all four bundles to reach its own code, and a category page fetched the whole checkout bundle to run five captcha files. The planner now refuses any plan that places a module twice, and says which module and which bundles.
+
 - **An enabled `Manipulus_Bundles` no longer breaks the storefront in developer mode.** Switching to developer mode empties `pub/static`, but the module still contributed its bundles map, so RequireJS asked for bundles that were gone and a product page's JavaScript never started. The module now leaves the map out whenever a bundle it names is missing for the theme and locale being rendered. A static content deploy still keeps it, because `manipulus build` writes the bundles after the deploy, so production behaves as before.
 - **Manipulus works on a store that minifies JavaScript.** Magento deploys the merged config as `requirejs-config.min.js` there, and `graph`, `plan`, `build` and `check` only looked for `requirejs-config.js`, so each stopped with "no requirejs-config.js". They now read whichever of the two is deployed.
 - **The bundles load on a store that minifies JavaScript.** RequireJS asked for `bundle-<name>.min.js`, which `build` never wrote, so every bundle 404'd. `Manipulus_Bundles` now puts the bundle path on Magento's minification exclusion list, so RequireJS asks for the `bundle-<name>.js` that `build` writes. Deploy static content after enabling the module, as before, for the exclusion to reach RequireJS.
@@ -16,6 +18,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- **`--common` takes `cluster` (the new default) or `shared`, and `intersect` is gone.** `intersect` could not be expressed as a RequireJS bundles map at all: it left a module in every page bundle that wanted it, which is the defect above. Asking for it now fails with that explanation rather than writing a plan that cannot work. `shared` puts everything two or more pages load into `common`. `cluster` gives each group of page types that shares enough modules its own bundle, so a home page does not carry checkout code. On a store with sample data, clustering gave the cart page 24.6% fewer bytes than the old default and the category page 13.2% fewer, with every page fetching one bundle fewer.
+- `--common cluster` takes a minimum group size, below which a group's modules go to `common` instead, because one extra request for a handful of modules costs more than carrying them everywhere.
 - CI runs `make check`, so the private-info sweep runs on every push, and a newer push cancels the run it replaces.
 - Dependabot groups its updates into one pull request per ecosystem.
 

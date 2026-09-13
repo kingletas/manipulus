@@ -110,22 +110,29 @@ def test_the_two_common_strategies_differ(tmp_path):
     from manipulus.bundling.plan import build_plan
 
     graph = Graph()
-    for name in ("shared", "only_a", "only_b", "everywhere"):
+    names = ["only_a", "only_b", "everywhere"] + [f"pair{i}" for i in range(10)]
+    for name in names:
         graph.files[name] = tmp_path / f"{name}.js"
         graph.edges[name] = []
     config = RequireConfig(raw={}, block_count=1)
+    pair = {f"pair{i}" for i in range(10)}
     pages = {
-        "product": {"shared", "only_a", "everywhere"},
-        "cart": {"shared", "only_b", "everywhere"},
+        "product": {"only_a", "everywhere", *pair},
+        "cart": {"only_b", "everywhere", *pair},
         "cms": {"everywhere"},
     }
-    intersect = build_plan("t", "en_US", graph, config, pages, common_strategy="intersect")
+    clustered = build_plan("t", "en_US", graph, config, pages, common_strategy="cluster")
     promoted = build_plan("t", "en_US", graph, config, pages, common_strategy="shared")
 
     common_of = lambda p: set(next(b for b in p.bundles if b.name == "common").modules)  # noqa: E731
-    assert common_of(intersect) == {"everywhere"}
-    assert common_of(promoted) == {"everywhere", "shared"}
-    assert intersect.common_strategy == "intersect"
+    named_of = lambda p, n: set(next(b for b in p.bundles if b.name == n).modules)  # noqa: E731
+
+    # Clustering keeps the pair off the page that never asks for it.
+    assert common_of(clustered) == {"everywhere"}
+    assert named_of(clustered, "cart-product") == pair
+    # Sharing puts it in common, so the cms page carries it too.
+    assert common_of(promoted) == {"everywhere", *pair}
+    assert clustered.common_strategy == "cluster"
 
 
 def test_a_bundle_the_plan_no_longer_has_is_removed(tmp_path):
