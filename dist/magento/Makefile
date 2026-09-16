@@ -31,7 +31,7 @@ install: ## Install dev dependencies (needs repo.magento.com credentials)
 	@$(COMPOSER) install
 
 .PHONY: check
-check: lint cs test ## Everything a commit has to pass
+check: lint cs stan test ## Everything a commit has to pass
 
 .PHONY: lint
 lint: ## Parse every PHP file with the real interpreter

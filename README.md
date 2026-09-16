@@ -203,7 +203,7 @@ Its checks need `magento/framework`, which resolves only from repo.magento.com:
 
 ```
 make magento-install    # needs credentials
-make magento            # the module's lint, coding standard and unit suite
+make magento            # the module's lint, coding standard, static analysis and unit suite
 make check-all          # both projects at once
 ```
 

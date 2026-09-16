@@ -30,10 +30,11 @@ reads or writes, and its test goes in the same place under `tests/`.
 - `make test` runs the suite. `make lint` runs ruff. `make format` rewrites files in house
   style and fixes what it can.
 - `make image` builds the container.
-- `make magento` runs the Magento module's own suite — 16 unit tests, a wiring test, the
-  Magento coding standard and static analysis. It needs `make magento-install` first, which
-  resolves `magento/framework` and so needs repo.magento.com credentials. `make check-all`
-  runs both projects.
+- `make magento` runs the Magento module's own checks: its unit suite, the Magento coding
+  standard and static analysis. It needs `make magento-install` first, which resolves
+  `magento/framework` and so needs repo.magento.com credentials. `make check-all` runs both
+  projects. CI runs the same checks on PHP 8.2 and 8.4 from the `COMPOSER_AUTH` secret; a
+  pull request from a fork has no secret, so there it only checks that every file parses.
 - Point the tool at a real store to try a change: `make plan ROOT=/path/to/magento`.
 
 ## Things worth knowing before you change the parser

@@ -32,21 +32,55 @@ jobs:
 
   magento-module:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor the manifest declares, and the newest PHP Magento supports.
+        php: ['8.2', '8.4']
+    defaults:
+      run:
+        working-directory: dist/magento
+    env:
+      COMPOSER_NO_INTERACTION: 1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2.37.2
         with:
-          php-version: '8.2'
+          php-version: ${{ matrix.php }}
+          extensions: dom, libxml, mbstring, intl, bcmath, soap
           coverage: none
 
-      # The unit suite needs magento/framework, which resolves only from
-      # repo.magento.com and only with credentials. A public runner has none,
-      # so what CI proves here is that every file parses on the floor the
-      # manifest claims — and the suite runs locally through `make magento`.
-      - name: Every PHP file parses on the declared floor
-        working-directory: dist/magento
-        run: find . -path ./vendor -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Every PHP file parses
+        run: make lint
+
+      # A pull request from a fork or from Dependabot is given no Actions
+      # secrets, so there it warns and skips; everywhere else it fails.
+      - name: Magento credentials
+        id: credentials
+        env:
+          COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ -n "${COMPOSER_AUTH}" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          elif [ "${EVENT}" = "pull_request" ]; then
+            echo "::warning::COMPOSER_AUTH is not available to this pull request, so the Magento module's suite did not run."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::error::COMPOSER_AUTH is not set. The Magento module's suite needs magento/framework from repo.magento.com."
+            exit 1
+          fi
+
+      - name: Install the module's dependencies
+        if: steps.credentials.outputs.present == 'true'
+        env:
+          COMPOSER_AUTH: ${{ secrets.COMPOSER_AUTH }}
+        run: make install
+
+      - name: Coding standard, static analysis and unit suite
+        if: steps.credentials.outputs.present == 'true'
+        run: make check
 
   image:
     runs-on: ubuntu-latest

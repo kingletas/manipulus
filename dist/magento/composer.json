@@ -46,6 +46,7 @@
         "check": [
             "@lint",
             "@cs",
+            "@stan",
             "@test"
         ]
     },
