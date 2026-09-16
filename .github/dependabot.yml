@@ -26,15 +26,3 @@ updates:
       all:
         patterns: ["*"]
     open-pull-requests-limit: 2
-
-  # The Magento module ships inside this repository and has its own manifest.
-  - package-ecosystem: composer
-    directory: /dist/magento
-    schedule:
-      interval: monthly
-    commit-message:
-      prefix: deps
-    groups:
-      all:
-        patterns: ["*"]
-    open-pull-requests-limit: 2
