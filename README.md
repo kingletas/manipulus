@@ -18,7 +18,7 @@ docker run --rm -v /path/to/magento:/magento:ro -v "$PWD:/out" manipulus:latest 
 
 | | |
 |---|---|
-| [From nothing to a bundled storefront](docs/from-nothing.md) | Start here. A real store, taken from 226 JavaScript requests to 15. |
+| [From nothing to a bundled storefront](docs/from-nothing.md) | Start here. A product page on a stock 2.4.8 store, taken from 226 JavaScript requests to 15. |
 | [How it works](docs/how-it-works.md) | The four stages, and what each one can and cannot see. |
 | [The Magento module](dist/magento/README.md) | What it does, and the trap that breaks checkout without it. |
 
