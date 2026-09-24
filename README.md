@@ -139,10 +139,9 @@ The two answer different questions. The layout pass asks what a page of this typ
 load, which is a union over every variant of it. A rendered page says what one real page
 *did* ask for, which is smaller and blind to anything that page did not happen to render.
 
-Measured on a store with 578,000 products and a custom theme, `only` took the shared bundle
-from 270 modules to 158, and a category page from 3,862 KB to 3,213 KB with the same
-components initialising. **Nothing breaks when it guesses low**: a module in no bundle is
-fetched on its own, which costs a request rather than a feature.
+The result is a smaller shared bundle, because it carries only what real pages asked for.
+**Nothing breaks when it guesses low**: a module in no bundle is fetched on its own, which
+costs a request rather than a feature.
 
 `add` stays the default, because the safe failure is carrying a module you did not need.
 
@@ -157,8 +156,8 @@ finally asks.
 manipulus plan --root /path/to/magento --defer
 ```
 
-**Expect this to be small.** On the store above it moved 13 modules out of 816. It is
-correct, it costs nothing, and it is not where the weight is.
+**Expect this to be small.** It is correct, it costs nothing, and it is not where the
+weight is.
 
 ### Wiring the bundles into Magento
 
@@ -227,11 +226,11 @@ It is silent and exits 0 when the deploy is sound. It exits 1 and names the prob
 bundle the map promises is not deployed, when a bundle claims a module it does not define,
 or, with `--url`, when a script the page asks for is one the server will not hand over.
 
-**This is worth having in a deploy pipeline.** The fault it exists for was found on a real
-store: a static content deploy moved the version forward, nothing rebuilt the bundles
-behind it, and every page referenced two files that returned 404. No log said so, no check
-failed, and the page still rendered. The store served 2.7 MB of JavaScript in roughly 170
-separate requests instead of two, for as long as nobody opened a browser network panel.
+**This is worth having in a deploy pipeline.** The fault it exists for is a quiet one: a
+static content deploy moves the version forward, nothing rebuilds the bundles behind it,
+and every page references bundle files that return 404. No log says so, no check fails,
+and the page still renders, because RequireJS falls back to fetching every module on its
+own, one request each, for as long as nobody opens a browser network panel.
 
 ## What it can't do
 

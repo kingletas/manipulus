@@ -10,9 +10,9 @@ All notable changes to this project are documented here. The format follows
 
 - **CI runs the Magento module's full checks on PHP 8.2 and 8.4**: its unit suite, the Magento coding standard and static analysis, where it used to check only that each file parses. `make magento` now includes static analysis too, as the contributing guide already said it did.
 
-- **`manipulus verify` checks what is deployed rather than what a plan says should be.** It is silent and exits 0 when every bundle the map promises is on disk and defines every module it claims, and with `--url` when every script a rendered page asks for is one the server hands over. The fault it exists for was found on a real store: a static content deploy moved the version forward, nothing rebuilt the bundles behind it, and every page referenced two files that returned 404. No log said so, no check failed, the page still rendered, and the store served 2.7 MB of JavaScript in roughly 170 separate requests instead of two.
-- **`--url-entries only` believes a rendered page over the layout for that page type.** The layout pass asks what a page of this type could load, which is a union over every variant; a rendered page says what one real page did ask for. On a store with 578,000 products and a custom theme it took the shared bundle from 270 modules to 158 and a category page from 3,862 KB to 3,213 KB with the same components initialising. `add` stays the default, because carrying a module you did not need is the safer failure, and a module in no bundle is fetched on its own rather than lost.
-- **`--defer` separates modules nothing waits for.** A `define([...])` dependency has to be there before the factory runs; an array-form `require([...], callback)` is asynchronous, so a module reached only that way goes in a bundle of its own that RequireJS fetches when something finally asks. Expect it to be small: on the store above it moved 13 modules out of 816.
+- **`manipulus verify` checks what is deployed rather than what a plan says should be.** It is silent and exits 0 when every bundle the map promises is on disk and defines every module it claims, and with `--url` when every script a rendered page asks for is one the server hands over. The fault it exists for is a quiet one: a static content deploy moves the version forward, nothing rebuilds the bundles behind it, and every page references bundle files that return 404. No log says so, no check fails, and the page still renders, because RequireJS falls back to fetching every module on its own.
+- **`--url-entries only` believes a rendered page over the layout for that page type.** The layout pass asks what a page of this type could load, which is a union over every variant; a rendered page says what one real page did ask for. The shared bundle gets smaller, because it carries only what real pages asked for. `add` stays the default, because carrying a module you did not need is the safer failure, and a module in no bundle is fetched on its own rather than lost.
+- **`--defer` separates modules nothing waits for.** A `define([...])` dependency has to be there before the factory runs; an array-form `require([...], callback)` is asynchronous, so a module reached only that way goes in a bundle of its own that RequireJS fetches when something finally asks. Expect it to be small.
 
 ### Fixed
 
@@ -100,7 +100,7 @@ and the page renders and functions.
 - A module wanted by several page types was written into every one of their bundles and
   declared more than once in the RequireJS map, so its bytes shipped repeatedly and only
   one claim decided where it was looked for — which is how a cart page ended up fetching
-  the product bundle. 134 of 557 modules were in that state.
+  the product bundle.
 
 ## [0.2.0] - 2026-09-07
 

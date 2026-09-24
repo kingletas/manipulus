@@ -6,8 +6,7 @@ can read.
 ## 1. Read the configuration
 
 Magento merges every module's `requirejs-config.js` into a single file when you deploy
-static content. On a real store that's a hundred and sixty separate files collapsed into
-one, at:
+static content. On a store that's many separate files collapsed into one, at:
 
 ```
 pub/static/<area>/<Vendor>/<theme>/<locale>/requirejs-config.js
