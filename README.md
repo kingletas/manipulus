@@ -28,8 +28,8 @@ The usual tool for this job is [magepack](https://github.com/magesuite/magepack)
 works by launching headless Chrome, loading each page type, and reading RequireJS's
 runtime registry to see what got loaded. That approach is sound, but it means you need a
 running store, a browser, a Node toolchain, and a URL for every page type. magepack's last
-release was October 2022 and it still pins Puppeteer 2.1.1, which ships a Chromium from
-February 2020.
+release was October 2022 and it still pins Puppeteer 2.1.1, whose Chromium 80 went
+stable in February 2020.
 
 Manipulus takes the other route. Everything RequireJS resolves at runtime is already
 written down in your codebase:
