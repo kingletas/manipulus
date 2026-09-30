@@ -23,6 +23,7 @@ All notable changes to this project are documented here. The format follows
 - **The bundles load on a store that minifies JavaScript.** RequireJS asked for `bundle-<name>.min.js`, which `build` never wrote, so every bundle 404'd. `Manipulus_Bundles` now puts the bundle path on Magento's minification exclusion list, so RequireJS asks for the `bundle-<name>.js` that `build` writes. Deploy static content after enabling the module, as before, for the exclusion to reach RequireJS.
 - The module's README said `manipulus:integrity:refresh -n` reports without writing. The option is `--dry-run`, because the console reserves `-n`.
 - **`make check` passes on a CI runner.** The private-info sweep flagged the runner's own login, `runner`, wherever the word appeared in prose. On CI it now skips the login and hostname checks, which only mean something on the author's machine, and still checks for home paths and personal source trees.
+- **The READMEs named the wrong cause for an edit to the deployed `requirejs-config.js` vanishing.** They said every static request in developer mode goes through `static.php`, which rebuilds the file. nginx sends a request there only when the file is missing; the rewrite is Magento's RequireJS `FileManager`, whose `ensureSourceFile()` writes the file again from the merged source on every page it renders in developer mode, and in production only when it is missing. The effect they warned about was right. The README, the module's README and `write_magento_module`'s docstring now say so.
 
 ### Changed
 

@@ -171,9 +171,10 @@ bin/magento setup:upgrade
 bin/magento setup:static-content:deploy -f
 ```
 
-**The deployed `requirejs-config.js` cannot simply be edited.** Every versioned static
-request in developer mode goes through `static.php`, which re-merges that file from source
-and discards anything appended to it. A module is the only place the map survives.
+**The deployed `requirejs-config.js` cannot simply be edited.** In developer mode, Magento's
+RequireJS `FileManager` writes that file again from the merged source every time it renders
+a page (`ensureSourceFile()`; in production, only when the file is missing), which discards
+anything appended to it. A module is the only place the map survives.
 
 The module also carries `bin/magento manipulus:integrity:refresh`. Magento applies
 subresource integrity to payment pages, so once the merged config changes its recorded hash
