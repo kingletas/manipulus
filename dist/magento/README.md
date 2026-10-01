@@ -19,9 +19,10 @@ A small Magento 2 module that does three jobs for [manipulus](https://github.com
 
 ## Why a module at all
 
-The deployed `requirejs-config.js` cannot simply be edited. Every versioned static request
-in developer mode goes through `static.php`, which re-merges that file from source and
-discards anything that was appended to it. A module is the only place the map survives.
+The deployed `requirejs-config.js` cannot simply be edited. In developer mode, Magento's
+RequireJS `FileManager` writes that file again from the merged source every time it renders
+a page (`ensureSourceFile()`; in production, only when the file is missing), which discards
+anything that was appended to it. A module is the only place the map survives.
 
 ## Installing
 
@@ -45,7 +46,8 @@ right, because Magento generates the merged config and its hash together.
 | `manipulus:bundles:show` | List the deployed bundles and their sizes. |
 
 Run the refresh whenever a deployed static file changes out of band — which in developer
-mode is most of the time, because `static.php` rebuilds the merged config on request.
+mode is most of the time, because Magento writes the merged config again on every page it
+renders.
 
 ## If the commands do not appear
 

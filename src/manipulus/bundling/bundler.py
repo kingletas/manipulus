@@ -180,9 +180,9 @@ def module_source() -> Path:
 def write_magento_module(plan: Plan, module_dir: Path, dry_run: bool = False) -> Path:
     """Copy the Magento module into place and fill in the bundles map.
 
-    The deployed requirejs-config.js cannot be edited: every versioned static request in
-    developer mode goes through static.php, which re-merges that file from source and
-    discards anything appended to it. A module is the only place the map survives.
+    The deployed requirejs-config.js cannot be edited: in developer mode Magento's
+    RequireJS FileManager writes that file again from the merged source on every page it
+    renders, discarding anything appended to it. A module is the only place the map survives.
     """
     source = module_source()
     mapping = {
