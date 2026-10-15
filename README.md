@@ -4,7 +4,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 Manipulus works out which RequireJS modules each of your Magento 2 page types actually
-loads, and bundles them so the browser fetches three files instead of a hundred and fifty.
+loads, and bundles them: on a stock 2.4.8 store, a product page goes from 226 JavaScript
+requests to 15.
 
 It reads your codebase. It doesn't drive a browser, it doesn't need Node, and it doesn't
 need your store to be running.
